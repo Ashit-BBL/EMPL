@@ -1211,60 +1211,50 @@ function printOrder(orderId, fromAdmin) {
     + '</div>' // end .page
 
     // Screen-only buttons
-    + '<div class="no-print" style="display:flex;justify-content:center;gap:12px;padding:16px;">'
-    + '  <button onclick="savePDF()" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
-    + '  <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:12px 22px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Close</button>'
+    + '<div class="no-print" style="text-align:center;padding:16px;">'
+    + '  <div style="display:flex;justify-content:center;gap:12px;margin-bottom:8px;">'
+    + '    <button onclick="savePDF()" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
+    + '    <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:12px 22px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Close</button>'
+    + '  </div>'
+    + '  <div style="font-size:11px;color:#888;">In print dialog — select <b>A4</b> paper &amp; set margins to <b>None</b></div>'
     + '</div>';
 
   window.scrollTo(0, 0);
 }
 
 // ================================================================
-//  SAVE AS PDF — switches overlay from fixed to static so
-//  position:fixed doesn't repeat on every printed page,
-//  manually hides the app, prints, then restores via afterprint.
+//  SAVE AS PDF — opens a clean standalone window containing only
+//  the order content so there is zero interference from the main
+//  page's body{min-height:100vh} or any other app CSS.
 // ================================================================
 function savePDF() {
-  var pa    = document.getElementById('printArea');
-  var root  = document.getElementById('root');
-  var modal = document.getElementById('modalRoot');
-  var noP   = pa.querySelector('.no-print');
+  var pa       = document.getElementById('printArea');
+  var styleEl  = pa.querySelector('style');
+  var pageDiv  = pa.querySelector('.page');
+  if (!styleEl || !pageDiv) return;
 
-  if (noP) noP.style.display = 'none';
+  // Build a complete self-contained HTML document.
+  // @page in a fresh window's <head> is the only reliable way to set
+  // paper size; body has no min-height so no blank pages are added.
+  var printDoc = '<!DOCTYPE html><html><head>'
+    + '<meta charset="UTF-8">'
+    + '<title>Emco Meditek — Order</title>'
+    + '<style>'
+    + '@page{size:A4 portrait;margin:10mm;}'
+    + styleEl.textContent
+    + '</style>'
+    + '</head><body style="margin:0;padding:0;">'
+    + pageDiv.outerHTML
+    + '</body></html>';
 
-  // Inject @page + body reset into <head> so Android Chrome respects A4 size.
-  // @page inside a body <style> tag is ignored by the print engine.
-  var headStyle = document.createElement('style');
-  headStyle.id  = 'emco-pdf-style';
-  headStyle.textContent =
-    '@page{size:A4 portrait;margin:10mm;}' +
-    'body{min-height:0!important;height:auto!important;background:#fff!important;}' +
-    '#root,#modalRoot,#toast,.no-print{display:none!important;}' +
-    '#printArea{display:block!important;position:static!important;}';
-  document.head.appendChild(headStyle);
-
-  // Switch overlay from fixed to static (fixed repeats on every printed page)
-  pa.style.position = 'static';
-  pa.style.zIndex   = '';
-  pa.style.height   = 'auto';
-  pa.style.overflow = 'visible';
-  pa.style.padding  = '0';
-
-  root.style.display  = 'none';
-  modal.style.display = 'none';
-
-  function restore() {
-    var s = document.getElementById('emco-pdf-style');
-    if (s) s.parentNode.removeChild(s);
-    pa.innerHTML        = '';
-    pa.style.cssText    = '';
-    root.style.display  = '';
-    modal.style.display = '';
-    window.removeEventListener('afterprint', restore);
-  }
-
-  window.addEventListener('afterprint', restore);
-  window.print();
+  var w = window.open('', '_blank');
+  if (!w) { showToast('Allow popups then tap Save as PDF again', '#C62828'); return; }
+  w.document.open();
+  w.document.write(printDoc);
+  w.document.close();
+  w.focus();
+  // Small delay lets the new window finish rendering before print dialog opens
+  setTimeout(function() { try { w.print(); } catch (e) {} }, 450);
 }
 
 function buildShareText(o) {
