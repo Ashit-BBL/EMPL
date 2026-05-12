@@ -222,9 +222,9 @@ window.onload = function() {
         DB.ref('emco_users/' + u.uid).once('value', function(snap) {
           var d = snap.val();
           if (!d) {
-            AUTH_FB.signOut();
-            showToast('Your account has been removed. Contact admin.', '#C62828');
-            return;
+            // Profile missing — create a default exec record so they can still log in
+            d = { name: u.email, role: 'exec', email: u.email, createdAt: Date.now() };
+            DB.ref('emco_users/' + u.uid).set(d);
           }
           USER_NAME = d.name || u.email;
           USER_ROLE = d.role || 'exec';
@@ -298,7 +298,10 @@ function renderLogin() {
     + '      onkeydown="if(event.key===\'Enter\')doLogin()"/>'
     + '  </div>'
     + '  <button id="loginBtn" class="btn btn-primary btn-full" style="margin-top:4px;" onclick="doLogin()">Sign In</button>'
-    + '  <div style="text-align:center;margin-top:16px;font-size:12px;color:#888;">New executive?'
+    + '  <div style="text-align:center;margin-top:12px;font-size:12px;color:#aaa;">'
+    + '    <button style="background:none;border:none;color:#7ABCDE;font-size:12px;cursor:pointer;text-decoration:underline;" onclick="doForgotPassword()">Forgot password?</button>'
+    + '  </div>'
+    + '  <div style="text-align:center;margin-top:10px;font-size:12px;color:#888;">New executive?'
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
@@ -1088,6 +1091,18 @@ function doLogin() {
 
 function doLogout() {
   AUTH_FB.signOut();
+}
+
+function doForgotPassword() {
+  var email = gv('lemail').trim();
+  if (!email) { showToast('Enter your email address first', '#C62828'); return; }
+  AUTH_FB.sendPasswordResetEmail(email)
+    .then(function() {
+      showToast('Password reset email sent to ' + email, '#00915C');
+    })
+    .catch(function(e) {
+      showToast(e.message, '#C62828');
+    });
 }
 
 function showRegModal() {
