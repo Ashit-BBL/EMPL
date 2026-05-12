@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Emco Meditek — Order Management</title>
+<style>
+/* ===== RESET ===== */
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#EBF2FA;min-height:100vh;}
+input,select,textarea{width:100%;padding:12px 14px;border:1.5px solid #C8D8E8;border-radius:8px;background:#fff;color:#1a2a3a;font-family:inherit;font-size:16px;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none;appearance:none;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#005A8E;box-shadow:0 0 0 3px rgba(0,90,142,.12);}
+input[readonly]{background:#F0F7F0;color:#1a4a2a;border-color:#A8C8A8;font-weight:700;cursor:default;}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:38px;}
+button{cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;border:none;}
+textarea{resize:vertical;min-height:80px;}
+
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:700;transition:opacity .15s,transform .1s;min-height:44px;}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+.btn-primary{background:#005A8E;color:#fff;}
+.btn-primary:hover:not(:disabled){background:#004A7A;}
+.btn-success{background:#00915C;color:#fff;}
+.btn-success:hover:not(:disabled){background:#007A4D;}
+.btn-danger{background:#C62828;color:#fff;}
+.btn-danger:hover:not(:disabled){background:#AD1616;}
+.btn-ghost{background:#fff;color:#444;border:1.5px solid #C8D8E8;}
+.btn-ghost:hover:not(:disabled){background:#f0f4f8;}
+.btn-print{background:#455A64;color:#fff;}
+.btn-print:hover:not(:disabled){background:#37474F;}
+.btn-sm{padding:7px 13px;font-size:12px;min-height:34px;}
+.btn-full{width:100%;border-radius:10px;min-height:50px;font-size:15px;}
+
+/* ===== HEADER ===== */
+.header{background:linear-gradient(135deg,#003D6B 0%,#005A8E 100%);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 3px 14px rgba(0,61,107,.35);}
+.header-logo{width:46px;height:46px;border-radius:10px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;}
+.header-logo img{width:46px;height:46px;object-fit:contain;}
+.header-info{flex:1;min-width:0;}
+.header-info h1{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.header-info p{font-size:10px;opacity:.75;margin-top:1px;}
+.header-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
+
+/* ===== TAB BAR ===== */
+.tab-bar{display:flex;gap:3px;padding:5px;background:#C8DFF0;border-radius:12px;margin:12px 12px 0;}
+.tab-btn{flex:1;padding:10px 6px;font-size:12px;font-weight:700;border-radius:9px;border:none;background:transparent;color:#004A7A;transition:all .15s;min-height:40px;cursor:pointer;}
+.tab-btn.active{background:#fff;color:#003D6B;box-shadow:0 2px 8px rgba(0,61,107,.15);}
+
+/* ===== PAGE BODY ===== */
+.page-body{padding:12px 12px 90px;max-width:540px;margin:0 auto;}
+
+/* ===== SECTION CARDS ===== */
+.sec{border-radius:13px;overflow:hidden;margin-bottom:13px;border:1.5px solid #DDEAF5;box-shadow:0 1px 6px rgba(0,90,142,.06);}
+.sec-head{padding:12px 15px;display:flex;align-items:center;gap:10px;}
+.sec-ico{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.sec-title{font-size:13px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;}
+.sec-body{padding:15px;background:#fff;}
+
+/* ===== FORM ===== */
+.field{margin-bottom:13px;}
+.field:last-child{margin-bottom:0;}
+.fl{font-size:11px;color:#3A6A8A;display:block;margin-bottom:5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.g3tax{display:grid;grid-template-columns:52px 1fr 1fr;gap:8px;align-items:center;margin-bottom:10px;}
+.g3tax:last-of-type{margin-bottom:0;}
+.tax-hdr{display:grid;grid-template-columns:52px 1fr 1fr;gap:8px;margin-bottom:8px;}
+
+/* ===== BADGES ===== */
+.calc-badge{font-size:9px;background:#00915C;color:#fff;padding:2px 5px;border-radius:4px;margin-left:5px;font-weight:800;vertical-align:middle;}
+.status-badge{display:inline-block;font-size:10px;padding:3px 8px;border-radius:99px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.s-pending{background:#FFF3CD;color:#7A5100;}
+.s-approved{background:#D4EDDA;color:#155724;}
+.s-cancelled{background:#F8D7DA;color:#721C24;}
+
+/* ===== ORDER CARDS ===== */
+.order-card{background:#fff;border:1.5px solid #DDEAF5;border-radius:12px;padding:13px 15px;margin-bottom:9px;cursor:pointer;transition:border-color .15s,box-shadow .15s;}
+.order-card:hover{border-color:#005A8E;box-shadow:0 2px 10px rgba(0,90,142,.1);}
+.order-no{font-size:12px;font-weight:800;color:#005A8E;}
+.order-meta{font-size:12px;color:#666;margin-top:3px;}
+.order-total{font-size:15px;font-weight:900;color:#00915C;}
+
+/* ===== PRODUCT ITEMS ===== */
+.prod-item{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border:1.5px solid #DDEAF5;border-radius:9px;margin-bottom:7px;background:#fff;}
+.prod-name{font-size:13px;font-weight:600;color:#1a2a3a;}
+
+/* ===== TOAST ===== */
+#toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);padding:11px 20px;border-radius:10px;font-size:13px;font-weight:700;color:#fff;z-index:9999;display:none;box-shadow:0 4px 20px rgba(0,0,0,.22);max-width:88vw;text-align:center;white-space:pre-line;}
+
+/* ===== LOGIN ===== */
+.login-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:linear-gradient(150deg,#002B4D 0%,#005A8E 55%,#0077B6 100%);}
+.login-logo-wrap{text-align:center;margin-bottom:22px;}
+.login-logo{width:84px;height:84px;border-radius:20px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;overflow:hidden;}
+.login-logo img{width:84px;height:84px;object-fit:contain;}
+.login-co-name{color:#fff;font-size:17px;font-weight:900;letter-spacing:.01em;}
+.login-co-sub{color:rgba(255,255,255,.65);font-size:11px;margin-top:4px;}
+.login-card{background:#fff;border-radius:18px;padding:26px 22px;width:100%;max-width:375px;box-shadow:0 10px 40px rgba(0,0,0,.3);}
+.login-title{font-size:18px;font-weight:800;color:#003D6B;margin-bottom:4px;}
+.login-sub-txt{font-size:12px;color:#777;margin-bottom:22px;}
+
+/* ===== LOADING ===== */
+.loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;}
+.spinner{width:40px;height:40px;border:4px solid #DDEAF5;border-top-color:#005A8E;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ===== EMPTY STATE ===== */
+.empty{text-align:center;padding:36px 16px;color:#999;}
+.empty-ico{font-size:38px;margin-bottom:10px;}
+.empty-txt{font-size:13px;font-weight:600;}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-end;justify-content:center;}
+.modal-sheet{background:#fff;border-radius:20px 20px 0 0;padding:22px 18px 34px;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;}
+.modal-handle{width:38px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 18px;}
+.modal-title{font-size:16px;font-weight:800;color:#003D6B;margin-bottom:14px;}
+.detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f0f4f8;font-size:13px;gap:10px;}
+.detail-row:last-child{border-bottom:none;}
+.d-lbl{color:#5A7A9A;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.d-val{color:#1a2a3a;font-weight:700;text-align:right;}
+.d-sect{font-size:11px;font-weight:900;color:#005A8E;letter-spacing:.07em;text-transform:uppercase;padding:12px 0 5px;border-bottom:2px solid #EBF2FA;}
+
+/* ===== CONFIG WARNING ===== */
+.config-warning{background:#FFF3CD;border:2px solid #F0AD00;border-radius:12px;padding:18px;margin:16px;font-size:13px;color:#7A5100;line-height:1.6;}
+.config-warning h3{font-size:15px;font-weight:800;margin-bottom:8px;color:#5C3A00;}
+.config-warning code{background:#FFE5A0;padding:2px 5px;border-radius:4px;font-family:monospace;font-size:12px;}
+
+/* ===== PRINT ===== */
+@media print{
+  .no-print,.header,.tab-bar,.modal-overlay{display:none!important;}
+  body,html{background:#fff;}
+  .page-body{padding:0;max-width:100%;}
+  .sec{border:1px solid #ccc;break-inside:avoid;margin-bottom:10px;}
+  .sec-head{padding:8px 12px;}
+  .sec-body{padding:10px 12px;}
+  input,select,textarea{border:none;padding:0;font-size:12px;background:transparent!important;color:#000!important;}
+  input[readonly]{background:transparent!important;color:#000!important;font-weight:700;}
+  .btn{display:none!important;}
+  .print-only{display:block!important;}
+}
+.print-only{display:none;}
+
+@media(min-width:480px){
+  .page-body{padding:14px 14px 90px;}
+}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="root">
+  <div class="loading-wrap">
+    <div class="spinner"></div>
+    <p style="color:#888;font-size:13px;font-weight:600;">Loading Emco Order App…</p>
+  </div>
+</div>
+<div id="modalRoot"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script>
+// ================================================================
+//  STEP 1 — PASTE YOUR EMCO FIREBASE CONFIG HERE
+//
+//  This is a SEPARATE Firebase project from any other app.
+//  How to get it:
+//  1. Go to https://console.firebase.google.com
+//  2. Create a NEW project → "Emco Meditek Orders" (free tier is fine)
+//  3. Click "Add app" → Web → copy the firebaseConfig object
+//  4. Paste the values below (replace each "YOUR_..." placeholder)
+//  5. In Firebase Console → Realtime Database → Create database
+//     Set rules: { "rules": { ".read": "auth != null", ".write": "auth != null" } }
+//  6. In Firebase Console → Authentication → Sign-in method → Enable Email/Password
+// ================================================================
+var FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+  databaseURL:       "YOUR_DATABASE_URL",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+
+// Admin registration code — change this to something secret before going live
+var ADMIN_CODE = "EMCO@ADMIN2024";
+
+// ================================================================
+//  DEFAULT PRODUCTS — auto-seeded when product list is empty
+//  Admin can add/edit/remove products from the Admin panel later
+// ================================================================
+var DEFAULT_PRODUCTS = [
+  "ECG Machine","Patient Monitor","Defibrillator","Infusion Pump",
+  "Syringe Pump","Ventilator","Pulse Oximeter","Blood Pressure Monitor",
+  "Ultrasound Machine","Surgical Light","Operating Table","Hospital Bed",
+  "Wheelchair","Nebulizer","Suction Machine","Autoclave / Sterilizer",
+  "Examination Table","Stretcher / Trolley","Oxygen Concentrator","Glucometer"
+];
+
+// ================================================================
+//  APP STATE
+// ================================================================
+var USER      = null;
+var USER_NAME = '';
+var USER_ROLE = 'exec';   // 'exec' | 'admin'
+var SCR       = 'login';
+var TAB       = 'newOrder';
+var PRODUCTS  = {};       // { firebaseKey: productName }
+var MY_ORDERS = [];
+var ALL_ORDERS= [];
+var DB        = null;
+var AUTH_FB   = null;
+var CONFIG_OK = false;
+
+// ================================================================
+//  INIT
+// ================================================================
+window.onload = function() {
+  CONFIG_OK = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
+  if (!CONFIG_OK) { showConfigWarning(); return; }
+  try {
+    var app = firebase.initializeApp(FIREBASE_CONFIG, 'emco');
+    DB      = firebase.database(app);
+    AUTH_FB = firebase.auth(app);
+    AUTH_FB.onAuthStateChanged(function(u) {
+      if (u) {
+        USER = u;
+        DB.ref('emco_users/' + u.uid).once('value', function(snap) {
+          var d    = snap.val() || {};
+          USER_NAME = d.name || u.email;
+          USER_ROLE = d.role || 'exec';
+          SCR = 'dashboard';
+          TAB = 'newOrder';
+          loadProducts(render);
+        });
+      } else {
+        USER = null; SCR = 'login'; render();
+      }
+    });
+  } catch(e) {
+    document.getElementById('root').innerHTML =
+      '<div style="padding:30px;color:#c00;font-size:14px;">Firebase error: ' + esc(e.message) + '</div>';
+  }
+};
+
+function showConfigWarning() {
+  document.getElementById('root').innerHTML =
+    '<div class="config-warning">'
+    + '<h3>⚙️ Firebase Setup Required</h3>'
+    + '<p>Open <code>emco-order.html</code> in a text editor and replace the'
+    + ' <code>YOUR_…</code> placeholders in <code>FIREBASE_CONFIG</code>'
+    + ' (near the top of the &lt;script&gt; block) with your Emco Firebase'
+    + ' project credentials.</p>'
+    + '<p style="margin-top:10px;">See the comments in the file for step-by-step instructions.</p>'
+    + '</div>';
+}
+
+// ================================================================
+//  RENDER
+// ================================================================
+function render() {
+  document.getElementById('root').innerHTML =
+    SCR === 'login' ? renderLogin() : renderDashboard();
+}
+
+// ----------------------------------------------------------------
+//  LOGIN SCREEN
+// ----------------------------------------------------------------
+function renderLogin() {
+  return '<div class="login-wrap">'
+    + '<div class="login-logo-wrap">'
+    + '  <div class="login-logo">'
+    + '    <img src="emco-logo.png" alt="Emco" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">'
+    + '    <span style="display:none;color:#fff;font-size:28px;font-weight:900;width:100%;height:100%;align-items:center;justify-content:center;">E</span>'
+    + '  </div>'
+    + '  <div class="login-co-name">Emco Meditek Pvt Ltd</div>'
+    + '  <div class="login-co-sub">Sales Order Management</div>'
+    + '</div>'
+    + '<div class="login-card">'
+    + '  <div class="login-title">Welcome Back</div>'
+    + '  <div class="login-sub-txt">Sign in to place and track orders</div>'
+    + '  <div class="field"><label class="fl">Email Address</label>'
+    + '    <input type="email" id="lemail" placeholder="your@email.com" autocomplete="email" inputmode="email"/>'
+    + '  </div>'
+    + '  <div class="field"><label class="fl">Password</label>'
+    + '    <input type="password" id="lpass" placeholder="••••••••" autocomplete="current-password"'
+    + '      onkeydown="if(event.key===\'Enter\')doLogin()"/>'
+    + '  </div>'
+    + '  <button id="loginBtn" class="btn btn-primary btn-full" style="margin-top:4px;" onclick="doLogin()">Sign In</button>'
+    + '  <div style="text-align:center;margin-top:16px;font-size:12px;color:#888;">New executive?'
+    + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
+    + '  </div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ----------------------------------------------------------------
+//  DASHBOARD
+// ----------------------------------------------------------------
+function renderDashboard() {
+  var tabs = [
+    {id:'newOrder', icon:'📋', label:'New Order'},
+    {id:'myOrders', icon:'📦', label:'My Orders'}
+  ];
+  if (USER_ROLE === 'admin') tabs.push({id:'admin', icon:'⚙️', label:'Admin'});
+
+  var tabBar = '<div class="tab-bar no-print">'
+    + tabs.map(function(t) {
+        return '<button class="tab-btn' + (TAB===t.id?' active':'') + '" onclick="setTab(\'' + t.id + '\')">'
+          + t.icon + ' ' + t.label + '</button>';
+      }).join('')
+    + '</div>';
+
+  var content = '';
+  if (TAB === 'newOrder')  content = renderNewOrder();
+  else if (TAB === 'myOrders') content = renderMyOrders();
+  else if (TAB === 'admin')    content = renderAdmin();
+
+  return '<div class="header no-print">'
+    + '  <div class="header-logo">'
+    + '    <img src="emco-logo.png" alt="Emco" onerror="this.style.display=\'none\'">'
+    + '  </div>'
+    + '  <div class="header-info"><h1>Emco Meditek Pvt Ltd</h1><p>Order Management System</p></div>'
+    + '  <div class="header-right">'
+    + '    <span style="font-size:11px;color:rgba(255,255,255,.8);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(USER_NAME) + '</span>'
+    + '    <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 10px;min-height:26px;" onclick="doLogout()">Sign Out</button>'
+    + '  </div>'
+    + '</div>'
+    + tabBar
+    + '<div class="page-body">'
+    + content
+    + '</div>';
+}
+
+// ================================================================
+//  NEW ORDER FORM
+// ================================================================
+function renderNewOrder() {
+  var prodOpts = '<option value="">— Select Product —</option>';
+  Object.keys(PRODUCTS).sort(function(a,b){
+    return PRODUCTS[a].localeCompare(PRODUCTS[b]);
+  }).forEach(function(id) {
+    prodOpts += '<option value="' + esc(id) + '">' + esc(PRODUCTS[id]) + '</option>';
+  });
+
+  return ''
+    // ── Print-only header ──
+    + '<div class="print-only" style="text-align:center;margin-bottom:18px;">'
+    + '  <div style="font-size:22px;font-weight:900;color:#003D6B;">Emco Meditek Pvt Ltd</div>'
+    + '  <div style="font-size:12px;color:#666;margin-top:3px;">Sales Order Form</div>'
+    + '  <hr style="margin:10px 0;border-color:#ccc;"/>'
+    + '</div>'
+
+    // ── Customer Information ──
+    + '<div class="sec">'
+    + '  <div class="sec-head" style="background:#E6F0FA;">'
+    + '    <div class="sec-ico" style="background:#BAD4EE;">👤</div>'
+    + '    <span class="sec-title" style="color:#003D6B;">Customer Information</span>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="field"><label class="fl">Customer Name *</label>'
+    + '      <input type="text" id="custName" placeholder="Full name or company name" autocapitalize="words"/>'
+    + '    </div>'
+    + '    <div class="field"><label class="fl">Address *</label>'
+    + '      <textarea id="custAddr" placeholder="Full delivery / billing address" rows="3"></textarea>'
+    + '    </div>'
+    + '    <div class="g2">'
+    + '      <div class="field"><label class="fl">GST Number</label>'
+    + '        <input type="text" id="custGst" placeholder="e.g. 27AABCU9603R1ZX" maxlength="15"'
+    + '          style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"/>'
+    + '      </div>'
+    + '      <div class="field"><label class="fl">Contact Number *</label>'
+    + '        <input type="tel" id="custPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric"/>'
+    + '      </div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    // ── Order Details ──
+    + '<div class="sec">'
+    + '  <div class="sec-head" style="background:#E6F5EE;">'
+    + '    <div class="sec-ico" style="background:#B4E0C6;">🏥</div>'
+    + '    <span class="sec-title" style="color:#1A4A2A;">Order Details</span>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="field"><label class="fl">Product *</label>'
+    + '      <select id="product" onchange="calcAll()">' + prodOpts + '</select>'
+    + '    </div>'
+    + '    <div class="field"><label class="fl">Accessories / Configuration</label>'
+    + '      <input type="text" id="accessories" placeholder="Optional — e.g. extra probes, stands, cables…"/>'
+    + '    </div>'
+    + '    <div class="g2">'
+    + '      <div class="field"><label class="fl">Quantity *</label>'
+    + '        <input type="number" id="qty" min="1" placeholder="0" inputmode="numeric" oninput="calcAll()"/>'
+    + '      </div>'
+    + '      <div class="field"><label class="fl">Unit Price ₹ *</label>'
+    + '        <input type="number" id="unitPrice" min="0" step="0.01" placeholder="0.00" inputmode="decimal" oninput="calcAll()"/>'
+    + '      </div>'
+    + '    </div>'
+    + '    <div class="field">'
+    + '      <label class="fl">Value ₹ <span class="calc-badge">AUTO</span></label>'
+    + '      <input type="text" id="value" readonly placeholder="0.00"/>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    // ── Tax Details ──
+    + '<div class="sec">'
+    + '  <div class="sec-head" style="background:#FDF3E8;">'
+    + '    <div class="sec-ico" style="background:#F5D9B0;">🧾</div>'
+    + '    <span class="sec-title" style="color:#5A3000;">Tax Details</span>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div style="font-size:11px;color:#7A5A00;background:#FFF9F0;border:1px solid #FFE5B0;border-radius:7px;padding:8px 11px;margin-bottom:14px;">'
+    + '      💡 CGST + SGST for intra-state &nbsp;|&nbsp; IGST for inter-state supplies'
+    + '    </div>'
+    + '    <div class="tax-hdr">'
+    + '      <span></span>'
+    + '      <span class="fl" style="margin:0;text-align:center;">Rate (%)</span>'
+    + '      <span class="fl" style="margin:0;text-align:center;">Amount ₹ <span class="calc-badge">AUTO</span></span>'
+    + '    </div>'
+    + '    <div class="g3tax">'
+    + '      <span class="fl" style="margin:0;">CGST</span>'
+    + '      <input type="number" id="cgstPct" min="0" max="28" step="0.5" placeholder="0" inputmode="decimal" oninput="calcAll()"/>'
+    + '      <input type="text"   id="cgstAmt" readonly placeholder="0.00"/>'
+    + '    </div>'
+    + '    <div class="g3tax">'
+    + '      <span class="fl" style="margin:0;">SGST</span>'
+    + '      <input type="number" id="sgstPct" min="0" max="28" step="0.5" placeholder="0" inputmode="decimal" oninput="calcAll()"/>'
+    + '      <input type="text"   id="sgstAmt" readonly placeholder="0.00"/>'
+    + '    </div>'
+    + '    <div class="g3tax" style="margin-bottom:14px;">'
+    + '      <span class="fl" style="margin:0;">IGST</span>'
+    + '      <input type="number" id="igstPct" min="0" max="28" step="0.5" placeholder="0" inputmode="decimal" oninput="calcAll()"/>'
+    + '      <input type="text"   id="igstAmt" readonly placeholder="0.00"/>'
+    + '    </div>'
+    + '    <div class="field">'
+    + '      <label class="fl">Total Value ₹ <span class="calc-badge">AUTO</span></label>'
+    + '      <input type="text" id="totalValue" readonly placeholder="0.00"'
+    + '        style="font-size:20px;font-weight:900;color:#003D6B;border-color:#A8C8DD;"/>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    // ── Payment & Notes ──
+    + '<div class="sec">'
+    + '  <div class="sec-head" style="background:#EEEDF9;">'
+    + '    <div class="sec-ico" style="background:#C8C5F0;">📝</div>'
+    + '    <span class="sec-title" style="color:#2A2A7A;">Payment &amp; Notes</span>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="field"><label class="fl">Payment Terms *</label>'
+    + '      <select id="payTerms" onchange="toggleCustomTerms()">'
+    + '        <option value="">— Select Payment Terms —</option>'
+    + '        <option value="Advance">Advance</option>'
+    + '        <option value="Within one week">Within one week</option>'
+    + '        <option value="Within 15 days">Within 15 days</option>'
+    + '        <option value="30 days">30 days</option>'
+    + '        <option value="__custom__">Custom…</option>'
+    + '      </select>'
+    + '    </div>'
+    + '    <div class="field" id="customTermsWrap" style="display:none;">'
+    + '      <label class="fl">Specify Payment Terms *</label>'
+    + '      <input type="text" id="customTerms" placeholder="e.g. 50% advance, balance on delivery"/>'
+    + '    </div>'
+    + '    <div class="field"><label class="fl">Special Instructions</label>'
+    + '      <textarea id="instructions" placeholder="Delivery date requirements, installation notes, warranty expectations…" rows="4"></textarea>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>'
+
+    // ── Submit ──
+    + '<div class="no-print">'
+    + '  <button id="submitBtn" class="btn btn-success btn-full" onclick="submitOrder()">✅&nbsp; Submit Order</button>'
+    + '  <p style="text-align:center;font-size:11px;color:#aaa;margin-top:8px;">Order will be sent to admin for review</p>'
+    + '</div>';
+}
+
+// ================================================================
+//  CALCULATIONS
+// ================================================================
+function calcAll() {
+  var qty      = parseFloat(gv('qty'))       || 0;
+  var price    = parseFloat(gv('unitPrice')) || 0;
+  var value    = qty * price;
+  var cgstPct  = parseFloat(gv('cgstPct'))   || 0;
+  var sgstPct  = parseFloat(gv('sgstPct'))   || 0;
+  var igstPct  = parseFloat(gv('igstPct'))   || 0;
+  var cgstAmt  = value * cgstPct / 100;
+  var sgstAmt  = value * sgstPct / 100;
+  var igstAmt  = value * igstPct / 100;
+  var total    = value + cgstAmt + sgstAmt + igstAmt;
+  sv('value',     fmt2(value));
+  sv('cgstAmt',   fmt2(cgstAmt));
+  sv('sgstAmt',   fmt2(sgstAmt));
+  sv('igstAmt',   fmt2(igstAmt));
+  sv('totalValue',fmt2(total));
+}
+
+function toggleCustomTerms() {
+  var sel  = document.getElementById('payTerms');
+  var wrap = document.getElementById('customTermsWrap');
+  if (sel && wrap) wrap.style.display = sel.value === '__custom__' ? 'block' : 'none';
+}
+
+// ================================================================
+//  SUBMIT ORDER
+// ================================================================
+function submitOrder() {
+  var custName   = gv('custName').trim();
+  var custAddr   = gv('custAddr').trim();
+  var custGst    = gv('custGst').trim().toUpperCase();
+  var custPhone  = gv('custPhone').trim();
+  var productId  = gv('product');
+  var accessories= gv('accessories').trim();
+  var qty        = parseFloat(gv('qty'))       || 0;
+  var unitPrice  = parseFloat(gv('unitPrice')) || 0;
+  var cgstPct    = parseFloat(gv('cgstPct'))   || 0;
+  var sgstPct    = parseFloat(gv('sgstPct'))   || 0;
+  var igstPct    = parseFloat(gv('igstPct'))   || 0;
+  var payTermsSel= gv('payTerms');
+  var customTerms= gv('customTerms').trim();
+  var payTerms   = payTermsSel === '__custom__' ? customTerms : payTermsSel;
+  var instructions = gv('instructions').trim();
+
+  // Validation
+  var errs = [];
+  if (!custName)  errs.push('Customer Name');
+  if (!custAddr)  errs.push('Address');
+  if (!custPhone || !/^\d{10}$/.test(custPhone)) errs.push('Contact Number (10 digits)');
+  if (!productId) errs.push('Product');
+  if (qty <= 0)   errs.push('Quantity (must be > 0)');
+  if (unitPrice <= 0) errs.push('Unit Price (must be > 0)');
+  if (!payTerms)  errs.push('Payment Terms');
+  if (payTermsSel === '__custom__' && !customTerms) errs.push('Custom payment terms text');
+  if (custGst && !validateGST(custGst)) errs.push('GST Number format (15 chars, e.g. 27AABCU9603R1ZX)');
+
+  if (errs.length) {
+    showToast('Please fix:\n' + errs.slice(0, 4).join('\n') + (errs.length > 4 ? '\n…and more' : ''), '#C62828');
+    return;
+  }
+
+  var value   = qty * unitPrice;
+  var cgstAmt = value * cgstPct / 100;
+  var sgstAmt = value * sgstPct / 100;
+  var igstAmt = value * igstPct / 100;
+  var total   = value + cgstAmt + sgstAmt + igstAmt;
+  var now     = Date.now();
+  var orderNo = genOrderNo(now);
+
+  var orderData = {
+    orderNo:       orderNo,
+    timestamp:     now,
+    salesExecUid:  USER.uid,
+    salesExecName: USER_NAME,
+    status:        'pending',
+    customer: {
+      name: custName, address: custAddr, gst: custGst, contact: custPhone
+    },
+    order: {
+      productId:    productId,
+      productName:  PRODUCTS[productId] || productId,
+      accessories:  accessories,
+      qty:          qty,
+      unitPrice:    unitPrice,
+      value:        value
+    },
+    tax: {
+      cgstPct: cgstPct, cgstAmt: cgstAmt,
+      sgstPct: sgstPct, sgstAmt: sgstAmt,
+      igstPct: igstPct, igstAmt: igstAmt
+    },
+    totalValue:    total,
+    paymentTerms:  payTerms,
+    instructions:  instructions
+  };
+
+  setBtnState('submitBtn', true, 'Submitting…');
+  DB.ref('emco_orders').push(orderData, function(err) {
+    setBtnState('submitBtn', false, '✅  Submit Order');
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    showToast('✅ Order ' + orderNo + ' submitted!', '#00915C');
+    clearOrderForm();
+  });
+}
+
+function clearOrderForm() {
+  ['custName','custAddr','custGst','custPhone','product','accessories',
+   'qty','unitPrice','value','cgstPct','cgstAmt','sgstPct','sgstAmt',
+   'igstPct','igstAmt','totalValue','payTerms','customTerms','instructions'
+  ].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
+  var w = document.getElementById('customTermsWrap');
+  if (w) w.style.display = 'none';
+}
+
+function genOrderNo(ts) {
+  var d   = new Date(ts);
+  var y   = d.getFullYear();
+  var m   = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return 'EMC-' + y + m + day + '-' + String(ts).slice(-4);
+}
+
+function validateGST(g) {
+  return /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g);
+}
+
+// ================================================================
+//  MY ORDERS
+// ================================================================
+function renderMyOrders() {
+  loadMyOrders();
+  return '<div id="myOrdersList">'
+    + '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
+    + '<div class="empty-txt">Loading your orders…</div></div>'
+    + '</div>';
+}
+
+function loadMyOrders() {
+  var el = document.getElementById('myOrdersList');
+  if (!el) return;
+  DB.ref('emco_orders').orderByChild('salesExecUid').equalTo(USER.uid)
+    .once('value', function(snap) {
+      var orders = [];
+      snap.forEach(function(c) {
+        var o = c.val(); o.id = c.key; orders.push(o);
+      });
+      orders.sort(function(a, b) { return b.timestamp - a.timestamp; });
+      MY_ORDERS = orders;
+      el.innerHTML = orders.length
+        ? orders.map(orderCardHTML).join('')
+        : '<div class="empty"><div class="empty-ico">📦</div>'
+          + '<div class="empty-txt">No orders yet. Place your first order!</div></div>';
+    });
+}
+
+// ================================================================
+//  ADMIN
+// ================================================================
+function renderAdmin() {
+  return '<div id="adminSection">'
+    + '<div class="tab-bar" style="margin:0 0 13px;">'
+    + '  <button class="tab-btn active" id="aBtnProd" onclick="showAdminTab(\'products\')">🏥 Products</button>'
+    + '  <button class="tab-btn"        id="aBtnOrders" onclick="showAdminTab(\'orders\')">📋 All Orders</button>'
+    + '</div>'
+    + '<div id="adminContent">' + renderAdminProducts() + '</div>'
+    + '</div>';
+}
+
+function showAdminTab(t) {
+  var p = document.getElementById('aBtnProd');
+  var o = document.getElementById('aBtnOrders');
+  if (!p || !o) return;
+  p.className = 'tab-btn' + (t === 'products' ? ' active' : '');
+  o.className = 'tab-btn' + (t === 'orders'   ? ' active' : '');
+  var c = document.getElementById('adminContent');
+  if (!c) return;
+  if (t === 'products') {
+    c.innerHTML = renderAdminProducts();
+  } else {
+    c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
+      + '<div class="empty-txt">Loading orders…</div></div>';
+    loadAllOrders();
+  }
+}
+
+function renderAdminProducts() {
+  var keys = Object.keys(PRODUCTS).sort(function(a, b) {
+    return PRODUCTS[a].localeCompare(PRODUCTS[b]);
+  });
+  var items = keys.map(function(id) {
+    return '<div class="prod-item">'
+      + '<span class="prod-name">' + esc(PRODUCTS[id]) + '</span>'
+      + '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\'' + esc(id) + '\')">Delete</button>'
+      + '</div>';
+  }).join('');
+
+  return '<div class="sec">'
+    + '<div class="sec-head" style="background:#E6F0FA;">'
+    + '  <div class="sec-ico" style="background:#BAD4EE;">🏥</div>'
+    + '  <span class="sec-title" style="color:#003D6B;">Product Catalogue</span>'
+    + '</div>'
+    + '<div class="sec-body">'
+    + (items || '<div class="empty" style="padding:16px 0;"><div class="empty-txt">No products yet</div></div>')
+    + '<div style="display:flex;gap:8px;margin-top:12px;">'
+    + '  <input type="text" id="newProdName" placeholder="New product name" style="flex:1;"/>'
+    + '  <button class="btn btn-primary" onclick="addProduct()" style="white-space:nowrap;">+ Add</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function loadAllOrders() {
+  var c = document.getElementById('adminContent');
+  if (!c) return;
+  DB.ref('emco_orders').orderByChild('timestamp').once('value', function(snap) {
+    var orders = [];
+    snap.forEach(function(ch) { var o = ch.val(); o.id = ch.key; orders.push(o); });
+    orders.sort(function(a, b) { return b.timestamp - a.timestamp; });
+    ALL_ORDERS = orders;
+    if (!orders.length) {
+      c.innerHTML = '<div class="empty"><div class="empty-ico">📋</div>'
+        + '<div class="empty-txt">No orders placed yet</div></div>';
+      return;
+    }
+    c.innerHTML = '<div style="font-size:12px;color:#555;font-weight:700;margin-bottom:8px;">'
+      + orders.length + ' order(s) total</div>'
+      + orders.map(function(o) {
+          return '<div class="order-card">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+            + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
+            + '  <select style="font-size:12px;padding:5px 28px 5px 8px;width:auto;min-width:115px;" onchange="updateOrderStatus(\'' + esc(o.id) + '\',this.value)">'
+            + '    <option value="pending"'   + (o.status==='pending'   ?' selected':'') + '>Pending</option>'
+            + '    <option value="approved"'  + (o.status==='approved'  ?' selected':'') + '>Approved</option>'
+            + '    <option value="cancelled"' + (o.status==='cancelled' ?' selected':'') + '>Cancelled</option>'
+            + '  </select>'
+            + '</div>'
+            + '<div class="order-meta" style="margin-top:6px;">' + esc(o.salesExecName) + ' → ' + esc(o.customer.name) + '</div>'
+            + '<div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">'
+            + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
+            + '  <button class="btn btn-ghost btn-sm" onclick="showOrderDetail(\'' + esc(o.id) + '\',true)">View Details</button>'
+            + '</div>'
+            + '</div>';
+        }).join('');
+  });
+}
+
+function updateOrderStatus(orderId, status) {
+  DB.ref('emco_orders/' + orderId + '/status').set(status, function(err) {
+    if (err) showToast('Update failed: ' + err.message, '#C62828');
+    else showToast('Status → ' + status, '#005A8E');
+  });
+}
+
+function addProduct() {
+  var name = (gv('newProdName') || '').trim();
+  if (!name) { showToast('Enter a product name', '#C62828'); return; }
+  DB.ref('emco_products').push({name: name, active: true}, function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    showToast('Product added!', '#00915C');
+    loadProducts(function() {
+      var c = document.getElementById('adminContent');
+      if (c) c.innerHTML = renderAdminProducts();
+    });
+  });
+}
+
+function deleteProduct(id) {
+  if (!confirm('Delete "' + (PRODUCTS[id] || id) + '"?')) return;
+  DB.ref('emco_products/' + id).remove(function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    showToast('Product removed', '#005A8E');
+    loadProducts(function() {
+      var c = document.getElementById('adminContent');
+      if (c) c.innerHTML = renderAdminProducts();
+    });
+  });
+}
+
+function loadProducts(cb) {
+  DB.ref('emco_products').once('value', function(snap) {
+    PRODUCTS = {};
+    snap.forEach(function(c) {
+      var v = c.val();
+      PRODUCTS[c.key] = (typeof v === 'string') ? v : (v.name || '');
+    });
+    if (!Object.keys(PRODUCTS).length) seedDefaultProducts(cb);
+    else if (cb) cb();
+  });
+}
+
+function seedDefaultProducts(cb) {
+  var ref  = DB.ref('emco_products');
+  var done = 0;
+  var total = DEFAULT_PRODUCTS.length;
+  DEFAULT_PRODUCTS.forEach(function(p) {
+    ref.push({name: p, active: true}, function() {
+      done++;
+      if (done === total) loadProducts(cb);
+    });
+  });
+}
+
+// ================================================================
+//  ORDER DETAIL MODAL
+// ================================================================
+function orderCardHTML(o) {
+  var d = new Date(o.timestamp);
+  var dateStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+  return '<div class="order-card" onclick="showOrderDetail(\'' + esc(o.id) + '\',false)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">'
+    + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
+    + '  <span class="status-badge s-' + esc(o.status || 'pending') + '">' + esc(o.status || 'pending') + '</span>'
+    + '</div>'
+    + '<div class="order-meta" style="margin-top:5px;">' + esc(o.customer.name) + '</div>'
+    + '<div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">'
+    + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
+    + '  <span style="font-size:11px;color:#aaa;">' + dateStr + '</span>'
+    + '</div>'
+    + '</div>';
+}
+
+function showOrderDetail(orderId, fromAdmin) {
+  var pool = fromAdmin ? ALL_ORDERS : MY_ORDERS.concat(ALL_ORDERS);
+  var o = null;
+  for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
+  if (!o) return;
+
+  function row(lbl, val) {
+    if (!val && val !== 0) return '';
+    return '<div class="detail-row"><span class="d-lbl">' + lbl + '</span><span class="d-val">' + esc(String(val)) + '</span></div>';
+  }
+  function sect(lbl) {
+    return '<div class="d-sect">' + lbl + '</div>';
+  }
+
+  var taxRows = '';
+  if (o.tax.cgstPct) taxRows += row('CGST ' + o.tax.cgstPct + '%', fmtCurr(o.tax.cgstAmt));
+  if (o.tax.sgstPct) taxRows += row('SGST ' + o.tax.sgstPct + '%', fmtCurr(o.tax.sgstAmt));
+  if (o.tax.igstPct) taxRows += row('IGST ' + o.tax.igstPct + '%', fmtCurr(o.tax.igstAmt));
+  if (!taxRows) taxRows = '<div class="detail-row"><span class="d-lbl">Tax</span><span class="d-val">NIL</span></div>';
+
+  var dateStr = new Date(o.timestamp).toLocaleString('en-IN', {
+    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+  });
+
+  var html = '<div class="modal-overlay" id="orderModal" onclick="closeModal(event)">'
+    + '<div class="modal-sheet" onclick="event.stopPropagation()">'
+    + '<div class="modal-handle"></div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+    + '  <div class="modal-title" style="margin:0;">' + esc(o.orderNo) + '</div>'
+    + '  <span class="status-badge s-' + esc(o.status || 'pending') + '">' + esc(o.status || 'pending') + '</span>'
+    + '</div>'
+
+    + sect('Customer')
+    + row('Name',    o.customer.name)
+    + row('Address', o.customer.address)
+    + row('GST',     o.customer.gst || 'N/A')
+    + row('Contact', o.customer.contact)
+
+    + sect('Order')
+    + row('Product',     o.order.productName)
+    + (o.order.accessories ? row('Accessories', o.order.accessories) : '')
+    + row('Quantity',    o.order.qty)
+    + row('Unit Price',  fmtCurr(o.order.unitPrice))
+    + row('Value',       fmtCurr(o.order.value))
+
+    + sect('Tax')
+    + taxRows
+    + '<div class="detail-row" style="margin-top:4px;">'
+    + '  <span class="d-lbl" style="color:#003D6B;font-size:14px;">Total Value</span>'
+    + '  <span class="d-val" style="font-size:18px;font-weight:900;color:#003D6B;">' + fmtCurr(o.totalValue) + '</span>'
+    + '</div>'
+
+    + sect('Terms')
+    + row('Payment Terms',  o.paymentTerms)
+    + (o.instructions ? row('Instructions', o.instructions) : '')
+    + row('Sales Executive', o.salesExecName)
+    + row('Date',            dateStr)
+
+    + '<div style="display:flex;gap:9px;margin-top:20px;">'
+    + '  <button class="btn btn-print" style="flex:1;" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">🖨️ Print</button>'
+    + '  <button class="btn btn-ghost" style="min-width:80px;" onclick="closeModal()">Close</button>'
+    + '</div>'
+    + '</div></div>';
+
+  document.getElementById('modalRoot').innerHTML = html;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e && e.target.id !== 'orderModal') return;
+  document.getElementById('modalRoot').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+// ================================================================
+//  PRINT ORDER
+// ================================================================
+function printOrder(orderId, fromAdmin) {
+  var pool = fromAdmin ? ALL_ORDERS : MY_ORDERS.concat(ALL_ORDERS);
+  var o = null;
+  for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
+  if (!o) return;
+
+  var taxLines = '';
+  if (o.tax.cgstPct) taxLines += tr('CGST ' + o.tax.cgstPct + '%', fmtCurr(o.tax.cgstAmt));
+  if (o.tax.sgstPct) taxLines += tr('SGST ' + o.tax.sgstPct + '%', fmtCurr(o.tax.sgstAmt));
+  if (o.tax.igstPct) taxLines += tr('IGST ' + o.tax.igstPct + '%', fmtCurr(o.tax.igstAmt));
+  if (!taxLines) taxLines = tr('Tax', 'NIL');
+
+  var dateStr = new Date(o.timestamp).toLocaleDateString('en-IN', {
+    day:'2-digit', month:'long', year:'numeric'
+  });
+
+  function tr(l, v) {
+    return '<tr><td style="padding:6px 8px;color:#555;font-weight:600;border-bottom:1px solid #eee;">'
+      + esc(l) + '</td><td style="padding:6px 8px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">'
+      + esc(String(v || '')) + '</td></tr>';
+  }
+  function thead(t) {
+    return '<tr><td colspan="2" style="padding:10px 8px 4px;font-size:11px;font-weight:900;color:#005A8E;letter-spacing:.07em;text-transform:uppercase;border-top:2px solid #EBF2FA;">'
+      + t + '</td></tr>';
+  }
+
+  var w = window.open('', '_blank', 'width=620,height=850');
+  w.document.write('<!DOCTYPE html><html><head>'
+    + '<meta charset="UTF-8"/>'
+    + '<title>Order ' + esc(o.orderNo) + ' — Emco Meditek</title>'
+    + '<style>'
+    + 'body{font-family:system-ui,Arial,sans-serif;padding:28px 32px;color:#1a2a3a;font-size:13px;}'
+    + '.co{text-align:center;margin-bottom:18px;border-bottom:2px solid #005A8E;padding-bottom:14px;}'
+    + '.co h1{font-size:20px;font-weight:900;color:#003D6B;}'
+    + '.co p{font-size:11px;color:#777;margin-top:3px;}'
+    + '.order-no{font-size:15px;font-weight:800;color:#003D6B;margin-bottom:4px;}'
+    + 'table{width:100%;border-collapse:collapse;margin-bottom:6px;}'
+    + '.total-row td{font-size:16px;font-weight:900;color:#003D6B;padding:10px 8px;border-top:2px solid #005A8E;}'
+    + '.footer{margin-top:44px;display:flex;justify-content:space-between;font-size:11px;color:#aaa;}'
+    + '.sign{display:flex;justify-content:space-between;margin-top:44px;}'
+    + '.sign-box{text-align:center;}'
+    + '.sign-line{border-top:1px solid #999;width:140px;margin-bottom:5px;}'
+    + '.sign-lbl{font-size:10px;color:#888;}'
+    + '@media print{button{display:none;}}'
+    + '</style></head><body>'
+    + '<div class="co"><h1>Emco Meditek Pvt Ltd</h1><p>Sales Order Confirmation</p></div>'
+    + '<div class="order-no">' + esc(o.orderNo) + '</div>'
+    + '<div style="font-size:12px;color:#888;margin-bottom:14px;">Date: ' + esc(dateStr) + '&nbsp;&nbsp;|&nbsp;&nbsp;Sales Exec: ' + esc(o.salesExecName) + '</div>'
+    + '<table>'
+    + thead('Customer')
+    + tr('Name',    o.customer.name)
+    + tr('Address', o.customer.address)
+    + tr('GST No.', o.customer.gst || 'N/A')
+    + tr('Contact', o.customer.contact)
+    + thead('Order Details')
+    + tr('Product',     o.order.productName)
+    + (o.order.accessories ? tr('Accessories', o.order.accessories) : '')
+    + tr('Quantity',    o.order.qty)
+    + tr('Unit Price',  fmtCurr(o.order.unitPrice))
+    + tr('Value',       fmtCurr(o.order.value))
+    + thead('Tax')
+    + taxLines
+    + '<tr class="total-row"><td>Total Value</td><td style="text-align:right;">' + fmtCurr(o.totalValue) + '</td></tr>'
+    + thead('Terms')
+    + tr('Payment Terms', o.paymentTerms)
+    + (o.instructions ? tr('Special Instructions', o.instructions) : '')
+    + '</table>'
+    + '<div class="sign">'
+    + '  <div class="sign-box"><div class="sign-line"></div><div class="sign-lbl">Customer Signature</div></div>'
+    + '  <div class="sign-box"><div class="sign-line"></div><div class="sign-lbl">Authorized Signatory</div></div>'
+    + '</div>'
+    + '<div class="footer">'
+    + '  <span>Printed: ' + new Date().toLocaleString('en-IN') + '</span>'
+    + '  <span>Emco Meditek Pvt Ltd — Authorized Sales Document</span>'
+    + '</div>'
+    + '<br/><div style="text-align:center;"><button onclick="window.print()" style="padding:8px 24px;background:#005A8E;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ Print</button></div>'
+    + '</body></html>');
+  w.document.close();
+}
+
+// ================================================================
+//  AUTHENTICATION
+// ================================================================
+function doLogin() {
+  var email = gv('lemail').trim();
+  var pass  = gv('lpass');
+  if (!email || !pass) { showToast('Enter email and password', '#C62828'); return; }
+  setBtnState('loginBtn', true, 'Signing in…');
+  AUTH_FB.signInWithEmailAndPassword(email, pass).catch(function(e) {
+    setBtnState('loginBtn', false, 'Sign In');
+    var msg = e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password'
+      ? 'Incorrect email or password' : e.message;
+    showToast(msg, '#C62828');
+  });
+}
+
+function doLogout() {
+  AUTH_FB.signOut();
+}
+
+function showRegModal() {
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-overlay" id="regModal" onclick="closeModal(event)">'
+    + '<div class="modal-sheet" onclick="event.stopPropagation()">'
+    + '<div class="modal-handle"></div>'
+    + '<div class="modal-title">Create Account</div>'
+    + '<div class="field"><label class="fl">Your Name</label>'
+    + '  <input type="text" id="rname" placeholder="Full name" autocapitalize="words"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Email Address</label>'
+    + '  <input type="email" id="remail" placeholder="your@email.com" inputmode="email"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Password</label>'
+    + '  <input type="password" id="rpass" placeholder="Minimum 6 characters"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Admin Code'
+    + '  <span style="font-weight:400;color:#aaa;text-transform:none;letter-spacing:0;font-size:11px;"> — leave blank for exec access</span>'
+    + '</label>'
+    + '  <input type="password" id="radmincode" placeholder="Enter code for admin access"/>'
+    + '</div>'
+    + '<button id="regBtn" class="btn btn-primary btn-full" onclick="doRegister()">Create Account</button>'
+    + '<button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="closeModal()">Cancel</button>'
+    + '</div></div>';
+  document.body.style.overflow = 'hidden';
+}
+
+function doRegister() {
+  var name  = gv('rname').trim();
+  var email = gv('remail').trim();
+  var pass  = gv('rpass');
+  var code  = gv('radmincode');
+  if (!name || !email || !pass) { showToast('Fill all required fields', '#C62828'); return; }
+  if (pass.length < 6) { showToast('Password must be at least 6 characters', '#C62828'); return; }
+  var role = (code === ADMIN_CODE) ? 'admin' : 'exec';
+  setBtnState('regBtn', true, 'Creating account…');
+  AUTH_FB.createUserWithEmailAndPassword(email, pass)
+    .then(function(cred) {
+      return DB.ref('emco_users/' + cred.user.uid).set({
+        name: name, role: role, email: email, createdAt: Date.now()
+      });
+    })
+    .then(function() {
+      document.getElementById('modalRoot').innerHTML = '';
+      document.body.style.overflow = '';
+      showToast('Account created! Signing you in…', '#00915C');
+    })
+    .catch(function(e) {
+      setBtnState('regBtn', false, 'Create Account');
+      showToast('Registration failed: ' + e.message, '#C62828');
+    });
+}
+
+// ================================================================
+//  TAB SWITCHING
+// ================================================================
+function setTab(t) {
+  TAB = t;
+  render();
+}
+
+// ================================================================
+//  UTILITIES
+// ================================================================
+function gv(id)    { var e = document.getElementById(id); return e ? e.value : ''; }
+function sv(id, v) { var e = document.getElementById(id); if (e) e.value = v; }
+function fmt2(n)   { return Number(n).toFixed(2); }
+
+function fmtCurr(n) {
+  return '₹ ' + Number(n).toLocaleString('en-IN', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function setBtnState(id, disabled, label) {
+  var b = document.getElementById(id);
+  if (!b) return;
+  b.disabled    = disabled;
+  b.textContent = label;
+}
+
+function showToast(msg, bg) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent    = msg;
+  t.style.background = bg || '#333';
+  t.style.display  = 'block';
+  clearTimeout(window._toast);
+  window._toast = setTimeout(function() { t.style.display = 'none'; }, 3800);
+}
+</script>
+</body>
+</html>
