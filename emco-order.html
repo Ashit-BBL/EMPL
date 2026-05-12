@@ -228,6 +228,7 @@ window.onload = function() {
           }
           USER_NAME = d.name || u.email;
           USER_ROLE = d.role || 'exec';
+          TAB = USER_ROLE === 'admin' ? 'admin' : 'newOrder';
           // Fetch admin code now that we're authenticated
           DB.ref('emco_config/adminCode').once('value', function(cs) {
             if (cs && cs.val()) ADMIN_CODE = cs.val();
@@ -313,11 +314,11 @@ function renderLogin() {
 //  DASHBOARD
 // ----------------------------------------------------------------
 function renderDashboard() {
-  var tabs = [
-    {id:'newOrder', icon:'📋', label:'New Order'},
-    {id:'myOrders', icon:'📦', label:'My Orders'}
-  ];
-  if (USER_ROLE === 'admin') tabs.push({id:'admin', icon:'⚙️', label:'Admin'});
+  var tabs = USER_ROLE === 'admin'
+    ? [{id:'admin', icon:'⚙️', label:'Admin Panel'}]
+    : [{id:'newOrder', icon:'📋', label:'New Order'}, {id:'myOrders', icon:'📦', label:'My Orders'}];
+
+  if (USER_ROLE === 'admin' && TAB !== 'admin') TAB = 'admin';
 
   var tabBar = '<div class="tab-bar no-print">'
     + tabs.map(function(t) {
