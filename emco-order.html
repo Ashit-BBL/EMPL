@@ -124,17 +124,10 @@ textarea{resize:vertical;min-height:80px;}
 .config-warning code{background:#FFE5A0;padding:2px 5px;border-radius:4px;font-family:monospace;font-size:12px;}
 
 /* ===== PRINT ===== */
+#printArea{display:none;}
 @media print{
-  .no-print,.header,.tab-bar,.modal-overlay{display:none!important;}
-  body,html{background:#fff;}
-  .page-body{padding:0;max-width:100%;}
-  .sec{border:1px solid #ccc;break-inside:avoid;margin-bottom:10px;}
-  .sec-head{padding:8px 12px;}
-  .sec-body{padding:10px 12px;}
-  input,select,textarea{border:none;padding:0;font-size:12px;background:transparent!important;color:#000!important;}
-  input[readonly]{background:transparent!important;color:#000!important;font-weight:700;}
-  .btn{display:none!important;}
-  .print-only{display:block!important;}
+  body > *{display:none!important;}
+  #printArea{display:block!important;position:fixed;top:0;left:0;width:100%;background:#fff;z-index:99999;padding:28px 32px;font-family:system-ui,Arial,sans-serif;font-size:13px;color:#1a2a3a;}
 }
 .print-only{display:none;}
 
@@ -145,6 +138,7 @@ textarea{resize:vertical;min-height:80px;}
 </head>
 <body>
 <div id="toast"></div>
+<div id="printArea"></div>
 <div id="root">
   <div class="loading-wrap">
     <div class="spinner"></div>
@@ -533,7 +527,7 @@ function submitOrder() {
   if (unitPrice <= 0) errs.push('Unit Price (must be > 0)');
   if (!payTerms)  errs.push('Payment Terms');
   if (payTermsSel === '__custom__' && !customTerms) errs.push('Custom payment terms text');
-  if (custGst && !validateGST(custGst)) errs.push('GST Number format (15 chars, e.g. 27AABCU9603R1ZX)');
+  // GST number is optional — no format validation enforced
 
   if (errs.length) {
     showToast('Please fix:\n' + errs.slice(0, 4).join('\n') + (errs.length > 4 ? '\n…and more' : ''), '#C62828');
@@ -619,11 +613,11 @@ function renderMyOrders() {
 function loadMyOrders() {
   var el = document.getElementById('myOrdersList');
   if (!el) return;
-  DB.ref('emco_orders').orderByChild('salesExecUid').equalTo(USER.uid)
-    .once('value', function(snap) {
+  DB.ref('emco_orders').once('value', function(snap) {
       var orders = [];
       snap.forEach(function(c) {
-        var o = c.val(); o.id = c.key; orders.push(o);
+        var o = c.val(); o.id = c.key;
+        if (o.salesExecUid === USER.uid) orders.push(o);
       });
       orders.sort(function(a, b) { return b.timestamp - a.timestamp; });
       MY_ORDERS = orders;
@@ -734,6 +728,7 @@ function updateOrderStatus(orderId, status) {
 }
 
 function addProduct() {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
   var name = (gv('newProdName') || '').trim();
   if (!name) { showToast('Enter a product name', '#C62828'); return; }
   DB.ref('emco_products').push({name: name, active: true}, function(err) {
@@ -747,6 +742,7 @@ function addProduct() {
 }
 
 function deleteProduct(id) {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
   if (!confirm('Delete "' + (PRODUCTS[id] || id) + '"?')) return;
   DB.ref('emco_products/' + id).remove(function(err) {
     if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
@@ -885,6 +881,16 @@ function printOrder(orderId, fromAdmin) {
   for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
   if (!o) return;
 
+  function tr(l, v) {
+    return '<tr><td style="padding:6px 8px;color:#555;font-weight:600;border-bottom:1px solid #eee;width:45%;">'
+      + esc(l) + '</td><td style="padding:6px 8px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">'
+      + esc(String(v || '')) + '</td></tr>';
+  }
+  function thead(t) {
+    return '<tr><td colspan="2" style="padding:10px 8px 4px;font-size:11px;font-weight:900;color:#005A8E;letter-spacing:.07em;text-transform:uppercase;border-top:2px solid #EBF2FA;">'
+      + t + '</td></tr>';
+  }
+
   var taxLines = '';
   if (o.tax.cgstPct) taxLines += tr('CGST ' + o.tax.cgstPct + '%', fmtCurr(o.tax.cgstAmt));
   if (o.tax.sgstPct) taxLines += tr('SGST ' + o.tax.sgstPct + '%', fmtCurr(o.tax.sgstAmt));
@@ -895,35 +901,22 @@ function printOrder(orderId, fromAdmin) {
     day:'2-digit', month:'long', year:'numeric'
   });
 
-  function tr(l, v) {
-    return '<tr><td style="padding:6px 8px;color:#555;font-weight:600;border-bottom:1px solid #eee;">'
-      + esc(l) + '</td><td style="padding:6px 8px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">'
-      + esc(String(v || '')) + '</td></tr>';
-  }
-  function thead(t) {
-    return '<tr><td colspan="2" style="padding:10px 8px 4px;font-size:11px;font-weight:900;color:#005A8E;letter-spacing:.07em;text-transform:uppercase;border-top:2px solid #EBF2FA;">'
-      + t + '</td></tr>';
-  }
-
-  var w = window.open('', '_blank', 'width=620,height=850');
-  w.document.write('<!DOCTYPE html><html><head>'
-    + '<meta charset="UTF-8"/>'
-    + '<title>Order ' + esc(o.orderNo) + ' — Emco Meditek</title>'
-    + '<style>'
-    + 'body{font-family:system-ui,Arial,sans-serif;padding:28px 32px;color:#1a2a3a;font-size:13px;}'
+  var pa = document.getElementById('printArea');
+  pa.innerHTML = '<style>'
     + '.co{text-align:center;margin-bottom:18px;border-bottom:2px solid #005A8E;padding-bottom:14px;}'
-    + '.co h1{font-size:20px;font-weight:900;color:#003D6B;}'
-    + '.co p{font-size:11px;color:#777;margin-top:3px;}'
+    + '.co h1{font-size:20px;font-weight:900;color:#003D6B;margin:0;}'
+    + '.co p{font-size:11px;color:#777;margin:3px 0 0;}'
     + '.order-no{font-size:15px;font-weight:800;color:#003D6B;margin-bottom:4px;}'
     + 'table{width:100%;border-collapse:collapse;margin-bottom:6px;}'
     + '.total-row td{font-size:16px;font-weight:900;color:#003D6B;padding:10px 8px;border-top:2px solid #005A8E;}'
-    + '.footer{margin-top:44px;display:flex;justify-content:space-between;font-size:11px;color:#aaa;}'
     + '.sign{display:flex;justify-content:space-between;margin-top:44px;}'
     + '.sign-box{text-align:center;}'
     + '.sign-line{border-top:1px solid #999;width:140px;margin-bottom:5px;}'
     + '.sign-lbl{font-size:10px;color:#888;}'
-    + '@media print{button{display:none;}}'
-    + '</style></head><body>'
+    + '.footer{margin-top:20px;display:flex;justify-content:space-between;font-size:11px;color:#aaa;}'
+    + '.no-print-btn{text-align:center;margin-top:16px;}'
+    + '@media print{.no-print-btn{display:none;}}'
+    + '</style>'
     + '<div class="co"><h1>Emco Meditek Pvt Ltd</h1><p>Sales Order Confirmation</p></div>'
     + '<div class="order-no">' + esc(o.orderNo) + '</div>'
     + '<div style="font-size:12px;color:#888;margin-bottom:14px;">Date: ' + esc(dateStr) + '&nbsp;&nbsp;|&nbsp;&nbsp;Sales Exec: ' + esc(o.salesExecName) + '</div>'
@@ -931,7 +924,7 @@ function printOrder(orderId, fromAdmin) {
     + thead('Customer')
     + tr('Name',    o.customer.name)
     + tr('Address', o.customer.address)
-    + tr('GST No.', o.customer.gst || 'N/A')
+    + (o.customer.gst ? tr('GST No.', o.customer.gst) : '')
     + tr('Contact', o.customer.contact)
     + thead('Order Details')
     + tr('Product',     o.order.productName)
@@ -954,9 +947,12 @@ function printOrder(orderId, fromAdmin) {
     + '  <span>Printed: ' + new Date().toLocaleString('en-IN') + '</span>'
     + '  <span>Emco Meditek Pvt Ltd — Authorized Sales Document</span>'
     + '</div>'
-    + '<br/><div style="text-align:center;"><button onclick="window.print()" style="padding:8px 24px;background:#005A8E;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ Print</button></div>'
-    + '</body></html>');
-  w.document.close();
+    + '<div class="no-print-btn">'
+    + '  <button onclick="window.print()" style="padding:10px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-right:10px;">🖨️ Print / Save PDF</button>'
+    + '  <button onclick="document.getElementById(\'printArea\').innerHTML=\'\'" style="padding:10px 18px;background:#eee;color:#333;border:none;border-radius:8px;font-size:14px;cursor:pointer;">✕ Close</button>'
+    + '</div>';
+  window.scrollTo(0, 0);
+  window.print();
 }
 
 // ================================================================
