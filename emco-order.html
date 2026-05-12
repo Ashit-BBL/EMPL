@@ -216,9 +216,6 @@ window.onload = function() {
     var app = firebase.initializeApp(FIREBASE_CONFIG, 'emco');
     DB      = firebase.database(app);
     AUTH_FB = firebase.auth(app);
-    DB.ref('emco_config/adminCode').once('value', function(cs) {
-      if (cs.val()) ADMIN_CODE = cs.val();
-    });
     AUTH_FB.onAuthStateChanged(function(u) {
       if (u) {
         USER = u;
@@ -231,9 +228,21 @@ window.onload = function() {
           }
           USER_NAME = d.name || u.email;
           USER_ROLE = d.role || 'exec';
-          SCR = 'dashboard';
-          TAB = 'newOrder';
-          loadProducts(render);
+          // Fetch admin code now that we're authenticated
+          DB.ref('emco_config/adminCode').once('value', function(cs) {
+            if (cs && cs.val()) ADMIN_CODE = cs.val();
+            SCR = 'dashboard';
+            TAB = 'newOrder';
+            loadProducts(render);
+          }, function() {
+            // Permission error fallback — use default code
+            SCR = 'dashboard';
+            TAB = 'newOrder';
+            loadProducts(render);
+          });
+        }, function(err) {
+          console.error('User load error:', err);
+          USER = null; SCR = 'login'; render();
         });
       } else {
         USER = null; SCR = 'login'; render();
