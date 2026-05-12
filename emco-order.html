@@ -306,7 +306,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.1</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.2</div>'
     + '</div>';
 }
 
@@ -345,7 +345,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.1</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.2</div>'
     + '</div>';
 }
 
@@ -1030,9 +1030,11 @@ function showOrderDetail(orderId, fromAdmin) {
     + row('Sales Executive', o.salesExecName)
     + row('Date',            dateStr)
 
-    + '<div style="display:flex;gap:9px;margin-top:20px;">'
-    + '  <button class="btn btn-print" style="flex:1;" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">🖨️ Save as PDF</button>'
-    + '  <button class="btn btn-ghost" style="min-width:80px;" onclick="closeModal()">Close</button>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px;">'
+    + '  <button class="btn btn-success" onclick="whatsappOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">💬 WhatsApp</button>'
+    + '  <button class="btn btn-primary" onclick="shareOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📤 Share</button>'
+    + '  <button class="btn btn-print" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">🖨️ Print</button>'
+    + '  <button class="btn btn-ghost" onclick="closeModal()">✕ Close</button>'
     + '</div>'
     + '</div></div>';
 
@@ -1117,7 +1119,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.1</div>'
+    + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.2</div>'
     + '  </div>'
     + '  <div class="co-right">Printed:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
@@ -1181,15 +1183,16 @@ function printOrder(orderId, fromAdmin) {
 
     // Screen-only buttons
     + '<div class="no-print">'
-    + '  <button onclick="window.print()" style="padding:13px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">🖨️ Save as PDF</button>'
-    + '  <button onclick="shareOrder(' + oJson + ')" style="padding:13px 28px;background:#25D366;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">📤 Share</button>'
+    + '  <button onclick="whatsappOrder(' + oJson + ')" style="padding:13px 28px;background:#25D366;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">💬 WhatsApp</button>'
+    + '  <button onclick="shareOrder(' + oJson + ')" style="padding:13px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">📤 Share</button>'
+    + '  <button onclick="window.print()" style="padding:13px 28px;background:#455A64;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">🖨️ Print</button>'
     + '  <button onclick="document.getElementById(\'printArea\').innerHTML=\'\'" style="padding:13px 20px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin:4px;">✕ Close</button>'
     + '</div>';
 
   window.scrollTo(0, 0);
 }
 
-function shareOrder(o) {
+function buildShareText(o) {
   var lines = [
     '*EMCO MEDITEK PVT LTD*',
     '_Sales Order Confirmation_',
@@ -1222,13 +1225,22 @@ function shareOrder(o) {
   lines.push('*Payment Terms:* ' + (o.paymentTerms || '—'));
   if (o.instructions) lines.push('*Instructions:* ' + o.instructions);
 
-  var text = lines.filter(function(l) { return l !== undefined && l !== null; }).join('\n');
+  return lines.filter(function(l) { return l !== undefined && l !== null; }).join('\n');
+}
 
+function whatsappOrder(o) {
+  var text = buildShareText(o);
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function shareOrder(o) {
+  var text = buildShareText(o);
   if (navigator.share) {
     navigator.share({ title: 'Order ' + o.orderNo + ' — Emco Meditek', text: text })
-      .catch(function() {});
+      .catch(function() {
+        window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      });
   } else {
-    // Fallback: copy to clipboard
     navigator.clipboard.writeText(text).then(function() {
       showToast('Order details copied to clipboard', '#005A8E');
     }).catch(function() {
