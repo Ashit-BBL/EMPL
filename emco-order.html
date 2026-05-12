@@ -1230,21 +1230,32 @@ function savePDF() {
   var modal = document.getElementById('modalRoot');
   var noP   = pa.querySelector('.no-print');
 
-  // Hide the action buttons so they don't appear in print
   if (noP) noP.style.display = 'none';
 
-  // Switch overlay from fixed (repeats per page) to static (flows once)
+  // Inject @page + body reset into <head> so Android Chrome respects A4 size.
+  // @page inside a body <style> tag is ignored by the print engine.
+  var headStyle = document.createElement('style');
+  headStyle.id  = 'emco-pdf-style';
+  headStyle.textContent =
+    '@page{size:A4 portrait;margin:10mm;}' +
+    'body{min-height:0!important;height:auto!important;background:#fff!important;}' +
+    '#root,#modalRoot,#toast,.no-print{display:none!important;}' +
+    '#printArea{display:block!important;position:static!important;}';
+  document.head.appendChild(headStyle);
+
+  // Switch overlay from fixed to static (fixed repeats on every printed page)
   pa.style.position = 'static';
   pa.style.zIndex   = '';
   pa.style.height   = 'auto';
   pa.style.overflow = 'visible';
   pa.style.padding  = '0';
 
-  // Hide rest of app so only printArea content is visible
   root.style.display  = 'none';
   modal.style.display = 'none';
 
   function restore() {
+    var s = document.getElementById('emco-pdf-style');
+    if (s) s.parentNode.removeChild(s);
     pa.innerHTML        = '';
     pa.style.cssText    = '';
     root.style.display  = '';
