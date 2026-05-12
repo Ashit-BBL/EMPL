@@ -216,11 +216,19 @@ window.onload = function() {
     var app = firebase.initializeApp(FIREBASE_CONFIG, 'emco');
     DB      = firebase.database(app);
     AUTH_FB = firebase.auth(app);
+    DB.ref('emco_config/adminCode').once('value', function(cs) {
+      if (cs.val()) ADMIN_CODE = cs.val();
+    });
     AUTH_FB.onAuthStateChanged(function(u) {
       if (u) {
         USER = u;
         DB.ref('emco_users/' + u.uid).once('value', function(snap) {
-          var d    = snap.val() || {};
+          var d = snap.val();
+          if (!d) {
+            AUTH_FB.signOut();
+            showToast('Your account has been removed. Contact admin.', '#C62828');
+            return;
+          }
           USER_NAME = d.name || u.email;
           USER_ROLE = d.role || 'exec';
           SCR = 'dashboard';
@@ -323,6 +331,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.0</div>'
     + '</div>';
 }
 
@@ -633,28 +642,36 @@ function loadMyOrders() {
 // ================================================================
 function renderAdmin() {
   return '<div id="adminSection">'
-    + '<div class="tab-bar" style="margin:0 0 13px;">'
-    + '  <button class="tab-btn active" id="aBtnProd" onclick="showAdminTab(\'products\')">🏥 Products</button>'
-    + '  <button class="tab-btn"        id="aBtnOrders" onclick="showAdminTab(\'orders\')">📋 All Orders</button>'
+    + '<div class="tab-bar" style="margin:0 0 13px;flex-wrap:wrap;">'
+    + '  <button class="tab-btn active" id="aBtnProd"   onclick="showAdminTab(\'products\')">🏥 Products</button>'
+    + '  <button class="tab-btn"        id="aBtnOrders" onclick="showAdminTab(\'orders\')">📋 Orders</button>'
+    + '  <button class="tab-btn"        id="aBtnUsers"  onclick="showAdminTab(\'users\')">👥 Users</button>'
+    + '  <button class="tab-btn"        id="aBtnSets"   onclick="showAdminTab(\'settings\')">⚙️ Settings</button>'
     + '</div>'
     + '<div id="adminContent">' + renderAdminProducts() + '</div>'
     + '</div>';
 }
 
 function showAdminTab(t) {
-  var p = document.getElementById('aBtnProd');
-  var o = document.getElementById('aBtnOrders');
-  if (!p || !o) return;
-  p.className = 'tab-btn' + (t === 'products' ? ' active' : '');
-  o.className = 'tab-btn' + (t === 'orders'   ? ' active' : '');
+  var map = {products:'aBtnProd', orders:'aBtnOrders', users:'aBtnUsers', settings:'aBtnSets'};
+  Object.keys(map).forEach(function(k) {
+    var el = document.getElementById(map[k]);
+    if (el) el.className = 'tab-btn' + (k === t ? ' active' : '');
+  });
   var c = document.getElementById('adminContent');
   if (!c) return;
   if (t === 'products') {
     c.innerHTML = renderAdminProducts();
-  } else {
+  } else if (t === 'orders') {
     c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
       + '<div class="empty-txt">Loading orders…</div></div>';
     loadAllOrders();
+  } else if (t === 'users') {
+    c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
+      + '<div class="empty-txt">Loading users…</div></div>';
+    loadAllUsers();
+  } else if (t === 'settings') {
+    c.innerHTML = renderAdminSettings();
   }
 }
 
@@ -750,6 +767,94 @@ function deleteProduct(id) {
     loadProducts(function() {
       var c = document.getElementById('adminContent');
       if (c) c.innerHTML = renderAdminProducts();
+    });
+  });
+}
+
+function loadAllUsers() {
+  var c = document.getElementById('adminContent');
+  if (!c) return;
+  DB.ref('emco_users').once('value', function(snap) {
+    var users = [];
+    snap.forEach(function(ch) { var u = ch.val(); u.uid = ch.key; users.push(u); });
+    if (!users.length) {
+      c.innerHTML = '<div class="empty"><div class="empty-ico">👥</div>'
+        + '<div class="empty-txt">No users found</div></div>';
+      return;
+    }
+    c.innerHTML = '<div class="sec">'
+      + '<div class="sec-head" style="background:#EEF2FF;">'
+      + '  <div class="sec-ico" style="background:#C5CAF5;">👥</div>'
+      + '  <span class="sec-title" style="color:#1A1A7A;">Sales Team</span>'
+      + '</div>'
+      + '<div class="sec-body">'
+      + users.map(function(u) {
+          var isMe = u.uid === USER.uid;
+          return '<div class="prod-item">'
+            + '<div style="min-width:0;">'
+            + '  <div class="prod-name">' + esc(u.name || 'Unknown')
+            +     (isMe ? ' <span style="font-size:10px;color:#aaa;">(you)</span>' : '') + '</div>'
+            + '  <div style="font-size:11px;color:#888;margin-top:2px;">'
+            +     esc(u.email || '') + ' &nbsp;·&nbsp; ' + (u.role === 'admin' ? '👑 Admin' : '👤 Exec')
+            + '  </div>'
+            + '</div>'
+            + (isMe
+                ? '<span style="font-size:11px;color:#ccc;">cannot delete self</span>'
+                : '<button class="btn btn-danger btn-sm" onclick="deleteUser(\''
+                    + esc(u.uid) + '\',\'' + esc((u.name||'this user').replace(/'/g,'')) + '\')">Delete</button>')
+            + '</div>';
+        }).join('')
+      + '</div></div>';
+  });
+}
+
+function deleteUser(uid, name) {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  if (!confirm('Remove "' + name + '" from the app?\n\nThey will be signed out on next login.')) return;
+  DB.ref('emco_users/' + uid).remove(function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    showToast(name + ' removed', '#005A8E');
+    loadAllUsers();
+  });
+}
+
+function renderAdminSettings() {
+  return '<div class="sec">'
+    + '<div class="sec-head" style="background:#FFF3F0;">'
+    + '  <div class="sec-ico" style="background:#FFCDB8;">🔑</div>'
+    + '  <span class="sec-title" style="color:#5A1A00;">Admin Access Code</span>'
+    + '</div>'
+    + '<div class="sec-body">'
+    + '<p style="font-size:12px;color:#666;margin-bottom:14px;">Required during registration to get admin access. Keep it secret.</p>'
+    + '<div class="field"><label class="fl">Current Code</label>'
+    + '  <input type="password" id="currentCode" placeholder="Enter current code to verify"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">New Code</label>'
+    + '  <input type="text" id="newCode" placeholder="New admin code"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Confirm New Code</label>'
+    + '  <input type="text" id="confirmCode" placeholder="Re-enter new code"/>'
+    + '</div>'
+    + '<button id="saveCodeBtn" class="btn btn-primary btn-full" onclick="saveAdminCode()">💾 Save New Code</button>'
+    + '</div></div>';
+}
+
+function saveAdminCode() {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  var current  = gv('currentCode').trim();
+  var newCode  = gv('newCode').trim();
+  var confirm2 = gv('confirmCode').trim();
+  if (current !== ADMIN_CODE)  { showToast('Current code is incorrect', '#C62828'); return; }
+  if (!newCode)                { showToast('New code cannot be empty', '#C62828'); return; }
+  if (newCode !== confirm2)    { showToast('New codes do not match', '#C62828'); return; }
+  setBtnState('saveCodeBtn', true, 'Saving…');
+  DB.ref('emco_config/adminCode').set(newCode, function(err) {
+    setBtnState('saveCodeBtn', false, '💾 Save New Code');
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    ADMIN_CODE = newCode;
+    showToast('Admin code updated!', '#00915C');
+    ['currentCode','newCode','confirmCode'].forEach(function(id) {
+      var e = document.getElementById(id); if (e) e.value = '';
     });
   });
 }
