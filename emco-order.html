@@ -126,8 +126,9 @@ textarea{resize:vertical;min-height:80px;}
 /* ===== PRINT ===== */
 #printArea{display:none;}
 @media print{
-  body > *{display:none!important;}
-  #printArea{display:block!important;position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:99999;}
+  #root,#modalRoot,#toast{display:none!important;}
+  .no-print{display:none!important;}
+  #printArea{display:block!important;}
 }
 .print-only{display:none;}
 
@@ -378,8 +379,17 @@ function renderNewOrder() {
     + '    <div class="field"><label class="fl">Customer Name *</label>'
     + '      <input type="text" id="custName" placeholder="Full name or company name" autocapitalize="words"/>'
     + '    </div>'
-    + '    <div class="field"><label class="fl">Address *</label>'
-    + '      <textarea id="custAddr" placeholder="Full delivery / billing address" rows="3"></textarea>'
+    + '    <div class="field"><label class="fl">Billing Address *</label>'
+    + '      <textarea id="custAddr" placeholder="Full billing address" rows="3" oninput="syncDeliveryAddr()"></textarea>'
+    + '    </div>'
+    + '    <div class="field">'
+    + '      <label class="fl">Delivery Address *</label>'
+    + '      <label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;color:#555;font-weight:600;cursor:pointer;">'
+    + '        <input type="checkbox" id="sameAddr" checked onchange="toggleDeliveryAddr()" style="width:auto;min-height:auto;accent-color:#005A8E;width:16px;height:16px;"/> Same as billing address'
+    + '      </label>'
+    + '      <div id="deliveryAddrWrap" style="display:none;">'
+    + '        <textarea id="deliveryAddr" placeholder="Full delivery address" rows="3"></textarea>'
+    + '      </div>'
     + '    </div>'
     + '    <div class="g2">'
     + '      <div class="field"><label class="fl">GST Number</label>'
@@ -520,12 +530,24 @@ function toggleCustomTerms() {
   if (sel && wrap) wrap.style.display = sel.value === '__custom__' ? 'block' : 'none';
 }
 
+function toggleDeliveryAddr() {
+  var cb   = document.getElementById('sameAddr');
+  var wrap = document.getElementById('deliveryAddrWrap');
+  if (wrap) wrap.style.display = (cb && cb.checked) ? 'none' : 'block';
+}
+
+function syncDeliveryAddr() {
+  // delivery address is resolved at submit time from billing addr when checkbox is checked
+}
+
 // ================================================================
 //  SUBMIT ORDER
 // ================================================================
 function submitOrder() {
   var custName   = gv('custName').trim();
   var custAddr   = gv('custAddr').trim();
+  var sameAddrCb = document.getElementById('sameAddr');
+  var deliveryAddr = (sameAddrCb && sameAddrCb.checked) ? custAddr : gv('deliveryAddr').trim();
   var custGst    = gv('custGst').trim().toUpperCase();
   var custPhone  = gv('custPhone').trim();
   var productId  = gv('product');
@@ -543,7 +565,8 @@ function submitOrder() {
   // Validation
   var errs = [];
   if (!custName)  errs.push('Customer Name');
-  if (!custAddr)  errs.push('Address');
+  if (!custAddr)  errs.push('Billing Address');
+  if (!deliveryAddr) errs.push('Delivery Address');
   if (!custPhone || !/^\d{10}$/.test(custPhone)) errs.push('Contact Number (10 digits)');
   if (!productId) errs.push('Product');
   if (qty <= 0)   errs.push('Quantity (must be > 0)');
@@ -572,7 +595,7 @@ function submitOrder() {
     salesExecName: USER_NAME,
     status:        'pending',
     customer: {
-      name: custName, address: custAddr, gst: custGst, contact: custPhone
+      name: custName, address: custAddr, deliveryAddr: deliveryAddr, gst: custGst, contact: custPhone
     },
     order: {
       productId:    productId,
@@ -602,12 +625,16 @@ function submitOrder() {
 }
 
 function clearOrderForm() {
-  ['custName','custAddr','custGst','custPhone','product','accessories',
+  ['custName','custAddr','deliveryAddr','custGst','custPhone','product','accessories',
    'qty','unitPrice','value','cgstPct','cgstAmt','sgstPct','sgstAmt',
    'igstPct','igstAmt','totalValue','payTerms','customTerms','instructions'
   ].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
   var w = document.getElementById('customTermsWrap');
   if (w) w.style.display = 'none';
+  var cb   = document.getElementById('sameAddr');
+  var daw  = document.getElementById('deliveryAddrWrap');
+  if (cb)  cb.checked = true;
+  if (daw) daw.style.display = 'none';
 }
 
 function genOrderNo(ts) {
@@ -1005,10 +1032,11 @@ function showOrderDetail(orderId, fromAdmin) {
     + '</div>'
 
     + sect('Customer')
-    + row('Name',    o.customer.name)
-    + row('Address', o.customer.address)
-    + row('GST',     o.customer.gst || 'N/A')
-    + row('Contact', o.customer.contact)
+    + row('Name',             o.customer.name)
+    + row('Billing Address',  o.customer.address)
+    + (o.customer.deliveryAddr && o.customer.deliveryAddr !== o.customer.address ? row('Delivery Address', o.customer.deliveryAddr) : row('Delivery Address', 'Same as billing'))
+    + row('GST',              o.customer.gst || 'N/A')
+    + row('Contact',          o.customer.contact)
 
     + sect('Order')
     + row('Product',     o.order.productName)
@@ -1073,6 +1101,7 @@ function printOrder(orderId, fromAdmin) {
 
   var oJson = JSON.stringify(o).replace(/</g,'\\u003c');
   var pa = document.getElementById('printArea');
+  pa.style.cssText = 'display:block;position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;overflow-y:auto;padding:16px;';
   pa.innerHTML = '<style>'
     + '@page{size:A4;margin:12mm;}'
     + '*{box-sizing:border-box;margin:0;padding:0;}'
@@ -1133,10 +1162,11 @@ function printOrder(orderId, fromAdmin) {
     // Two-col: Customer | Order
     + '<div class="two-col">'
     + '  <div class="box"><div class="box-title">Customer Details</div>'
-    + (o.customer.name    ? '<div class="r"><span class="rl">Name</span><span class="rv">'    + esc(o.customer.name)    + '</span></div>' : '')
-    + (o.customer.address ? '<div class="r"><span class="rl">Address</span><span class="rv">' + esc(o.customer.address) + '</span></div>' : '')
-    + (o.customer.gst     ? '<div class="r"><span class="rl">GST No.</span><span class="rv">' + esc(o.customer.gst)     + '</span></div>' : '')
-    + (o.customer.contact ? '<div class="r"><span class="rl">Contact</span><span class="rv">' + esc(o.customer.contact) + '</span></div>' : '')
+    + (o.customer.name    ? '<div class="r"><span class="rl">Name</span><span class="rv">'             + esc(o.customer.name)    + '</span></div>' : '')
+    + (o.customer.address ? '<div class="r"><span class="rl">Billing Addr</span><span class="rv">'    + esc(o.customer.address) + '</span></div>' : '')
+    + '<div class="r"><span class="rl">Delivery Addr</span><span class="rv">' + esc(o.customer.deliveryAddr && o.customer.deliveryAddr !== o.customer.address ? o.customer.deliveryAddr : 'Same as billing') + '</span></div>'
+    + (o.customer.gst     ? '<div class="r"><span class="rl">GST No.</span><span class="rv">'         + esc(o.customer.gst)     + '</span></div>' : '')
+    + (o.customer.contact ? '<div class="r"><span class="rl">Contact</span><span class="rv">'         + esc(o.customer.contact) + '</span></div>' : '')
     + '  </div>'
     + '  <div class="box"><div class="box-title">Order Details</div>'
     + (o.order.productName  ? '<div class="r"><span class="rl">Product</span><span class="rv">'     + esc(o.order.productName)      + '</span></div>' : '')
@@ -1186,7 +1216,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <button onclick="whatsappOrder(' + oJson + ')" style="padding:13px 28px;background:#25D366;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">💬 WhatsApp</button>'
     + '  <button onclick="shareOrder(' + oJson + ')" style="padding:13px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">📤 Share</button>'
     + '  <button onclick="window.print()" style="padding:13px 28px;background:#455A64;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;margin:4px;">🖨️ Print</button>'
-    + '  <button onclick="document.getElementById(\'printArea\').innerHTML=\'\'" style="padding:13px 20px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin:4px;">✕ Close</button>'
+    + '  <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:13px 20px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin:4px;">✕ Close</button>'
     + '</div>';
 
   window.scrollTo(0, 0);
@@ -1203,7 +1233,10 @@ function buildShareText(o) {
     '',
     '*── CUSTOMER ──*',
     '*Name:* ' + o.customer.name,
-    '*Address:* ' + o.customer.address,
+    '*Billing Address:* ' + o.customer.address,
+    (o.customer.deliveryAddr && o.customer.deliveryAddr !== o.customer.address
+      ? '*Delivery Address:* ' + o.customer.deliveryAddr
+      : '*Delivery Address:* Same as billing'),
     (o.customer.gst ? '*GST:* ' + o.customer.gst : ''),
     '*Contact:* ' + o.customer.contact,
     '',
