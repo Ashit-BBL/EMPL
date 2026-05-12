@@ -1101,44 +1101,46 @@ function printOrder(orderId, fromAdmin) {
 
   var oJson = JSON.stringify(o).replace(/</g,'\\u003c');
   var pa = document.getElementById('printArea');
-  pa.style.cssText = 'display:block;position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;overflow-y:auto;padding:16px;';
+  pa.style.cssText = 'display:block;position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;overflow-y:auto;padding:12px;';
   pa.innerHTML = '<style>'
-    + '@page{size:A4;margin:12mm;}'
+    + '@page{size:A4;margin:10mm;}'
     + '*{box-sizing:border-box;margin:0;padding:0;}'
-    + 'body,html{height:100%;font-family:Arial,sans-serif;font-size:15px;color:#111;}'
-    + '.page{display:flex;flex-direction:column;min-height:calc(297mm - 24mm);padding:0;}'
-    + '.co-hdr{text-align:center;padding:16px 0 12px;border-bottom:4px solid #005A8E;margin-bottom:14px;display:flex;align-items:center;gap:14px;}'
-    + '.co-logo{width:62px;height:62px;object-fit:contain;border-radius:8px;flex-shrink:0;}'
-    + '.co-text{flex:1;text-align:left;}'
-    + '.co-name-big{font-size:28px;font-weight:900;color:#003D6B;line-height:1.1;}'
-    + '.co-sub{font-size:12px;color:#777;margin-top:5px;font-weight:600;}'
-    + '.co-right{text-align:right;font-size:11px;color:#888;flex-shrink:0;}'
-    + '.meta-bar{background:#F0F6FC;border-radius:7px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}'
-    + '.order-no-big{font-size:22px;font-weight:900;color:#003D6B;}'
-    + '.meta-right{font-size:14px;color:#444;line-height:1.7;text-align:right;}'
-    + '.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;flex:1;min-height:0;}'
-    + '.box{border:1.5px solid #C8DCEF;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;}'
-    + '.box-title{font-size:12px;font-weight:900;color:#005A8E;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;border-bottom:1.5px solid #DDEEFF;padding-bottom:5px;}'
-    + '.r{display:flex;padding:6px 0;border-bottom:1px solid #F4F8FC;font-size:15px;}'
+    + 'body,html{font-family:Arial,sans-serif;font-size:11px;color:#111;}'
+    + '.page{display:flex;flex-direction:column;padding:0;}'
+    + '.co-hdr{padding:8px 0 7px;border-bottom:3px solid #005A8E;margin-bottom:8px;display:flex;align-items:center;gap:10px;}'
+    + '.co-logo{width:42px;height:42px;object-fit:contain;border-radius:6px;flex-shrink:0;}'
+    + '.co-text{flex:1;}'
+    + '.co-name-big{font-size:18px;font-weight:900;color:#003D6B;line-height:1.1;}'
+    + '.co-sub{font-size:9px;color:#777;margin-top:3px;font-weight:600;}'
+    + '.co-right{text-align:right;font-size:9px;color:#888;flex-shrink:0;white-space:nowrap;}'
+    + '.meta-bar{background:#F0F6FC;border-radius:6px;padding:8px 10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}'
+    + '.order-no-big{font-size:14px;font-weight:900;color:#003D6B;word-break:break-all;}'
+    + '.meta-right{font-size:10px;color:#444;line-height:1.6;text-align:right;white-space:nowrap;}'
+    + '.box{border:1.5px solid #C8DCEF;border-radius:7px;padding:9px 11px;margin-bottom:7px;}'
+    + '.box-title{font-size:9px;font-weight:900;color:#005A8E;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px;border-bottom:1px solid #DDEEFF;padding-bottom:3px;}'
+    + '.r{display:flex;padding:4px 0;border-bottom:1px solid #F4F8FC;font-size:11px;align-items:baseline;}'
     + '.r:last-child{border-bottom:none;}'
-    + '.rl{color:#555;font-weight:600;width:44%;flex-shrink:0;}'
-    + '.rv{font-weight:700;color:#111;}'
-    + '.tax-bar{border:1.5px solid #C8DCEF;border-radius:8px;padding:13px 16px;margin-bottom:14px;}'
-    + '.tax-label{font-size:12px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}'
-    + '.tax-val{font-size:15px;font-weight:700;color:#333;}'
-    + '.total-bar{background:#003D6B;color:#fff;border-radius:8px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}'
-    + '.total-lbl{font-size:16px;font-weight:700;letter-spacing:.04em;}'
-    + '.total-val{font-size:28px;font-weight:900;}'
-    + '.terms-box{border:1.5px solid #C8DCEF;border-radius:8px;padding:13px 16px;margin-bottom:0;}'
-    + '.terms-label{font-size:12px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}'
-    + '.spacer{flex:1;min-height:12px;}'
-    + '.sign-row{display:flex;justify-content:space-between;padding:0 20px;}'
+    + '.rl{color:#555;font-weight:600;width:36%;flex-shrink:0;padding-right:6px;}'
+    + '.rv{font-weight:700;color:#111;flex:1;word-break:break-word;}'
+    + '.tax-bar{border:1.5px solid #C8DCEF;border-radius:7px;padding:9px 11px;margin-bottom:7px;}'
+    + '.tax-label{font-size:9px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}'
+    + '.tax-val{font-size:11px;font-weight:700;color:#333;line-height:1.7;}'
+    + '.total-bar{background:#003D6B;color:#fff;border-radius:7px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}'
+    + '.total-lbl{font-size:12px;font-weight:700;letter-spacing:.03em;}'
+    + '.total-val{font-size:20px;font-weight:900;}'
+    + '.terms-box{border:1.5px solid #C8DCEF;border-radius:7px;padding:9px 11px;margin-bottom:7px;}'
+    + '.terms-label{font-size:9px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}'
+    + '.sign-row{display:flex;justify-content:space-between;padding:10px 10px 0;margin-top:4px;}'
     + '.sign-box{text-align:center;}'
-    + '.sign-line{border-top:1.5px solid #666;width:180px;margin-bottom:7px;}'
-    + '.sign-lbl{font-size:10px;color:#666;font-weight:600;}'
-    + '.footer{display:flex;justify-content:space-between;font-size:9px;color:#aaa;margin-top:12px;border-top:1px solid #ddd;padding-top:8px;}'
-    + '.no-print{text-align:center;padding:20px;}'
-    + '@media print{.no-print{display:none!important;}.page{height:calc(297mm - 24mm);overflow:hidden;}}'
+    + '.sign-line{border-top:1.5px solid #666;width:110px;margin-bottom:4px;}'
+    + '.sign-lbl{font-size:8px;color:#666;font-weight:600;}'
+    + '.footer{display:flex;justify-content:space-between;font-size:8px;color:#aaa;margin-top:8px;border-top:1px solid #eee;padding-top:5px;}'
+    + '.no-print{text-align:center;padding:14px;}'
+    + '@media print{'
+    + '  .no-print{display:none!important;}'
+    + '  body,html{min-height:0!important;height:auto!important;}'
+    + '  .page{min-height:calc(297mm - 20mm);}'
+    + '}'
     + '</style>'
 
     + '<div class="page">'
@@ -1150,31 +1152,31 @@ function printOrder(orderId, fromAdmin) {
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
     + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.2</div>'
     + '  </div>'
-    + '  <div class="co-right">Printed:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
+    + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
 
     // Order meta
     + '<div class="meta-bar">'
     + '  <span class="order-no-big">' + esc(o.orderNo) + '</span>'
-    + '  <div class="meta-right"><b>Date:</b> ' + esc(dateStr) + '<br><b>Sales Exec:</b> ' + esc(o.salesExecName) + '</div>'
+    + '  <div class="meta-right"><b>' + esc(dateStr) + '</b><br>' + esc(o.salesExecName) + '</div>'
     + '</div>'
 
-    // Two-col: Customer | Order
-    + '<div class="two-col">'
-    + '  <div class="box"><div class="box-title">Customer Details</div>'
-    + (o.customer.name    ? '<div class="r"><span class="rl">Name</span><span class="rv">'             + esc(o.customer.name)    + '</span></div>' : '')
-    + (o.customer.address ? '<div class="r"><span class="rl">Billing Addr</span><span class="rv">'    + esc(o.customer.address) + '</span></div>' : '')
+    // Customer Details (full width)
+    + '<div class="box"><div class="box-title">Customer Details</div>'
+    + (o.customer.name    ? '<div class="r"><span class="rl">Name</span><span class="rv">'         + esc(o.customer.name)    + '</span></div>' : '')
+    + (o.customer.address ? '<div class="r"><span class="rl">Billing Addr</span><span class="rv">' + esc(o.customer.address) + '</span></div>' : '')
     + '<div class="r"><span class="rl">Delivery Addr</span><span class="rv">' + esc(o.customer.deliveryAddr && o.customer.deliveryAddr !== o.customer.address ? o.customer.deliveryAddr : 'Same as billing') + '</span></div>'
-    + (o.customer.gst     ? '<div class="r"><span class="rl">GST No.</span><span class="rv">'         + esc(o.customer.gst)     + '</span></div>' : '')
-    + (o.customer.contact ? '<div class="r"><span class="rl">Contact</span><span class="rv">'         + esc(o.customer.contact) + '</span></div>' : '')
-    + '  </div>'
-    + '  <div class="box"><div class="box-title">Order Details</div>'
-    + (o.order.productName  ? '<div class="r"><span class="rl">Product</span><span class="rv">'     + esc(o.order.productName)      + '</span></div>' : '')
-    + (o.order.accessories  ? '<div class="r"><span class="rl">Accessories</span><span class="rv">' + esc(o.order.accessories)      + '</span></div>' : '')
-    + '<div class="r"><span class="rl">Quantity</span><span class="rv">'    + esc(String(o.order.qty))        + '</span></div>'
-    + '<div class="r"><span class="rl">Unit Price</span><span class="rv">'  + fmtCurr(o.order.unitPrice)      + '</span></div>'
-    + '<div class="r"><span class="rl">Value</span><span class="rv">'       + fmtCurr(o.order.value)          + '</span></div>'
-    + '  </div>'
+    + (o.customer.gst     ? '<div class="r"><span class="rl">GST No.</span><span class="rv">'      + esc(o.customer.gst)     + '</span></div>' : '')
+    + (o.customer.contact ? '<div class="r"><span class="rl">Contact</span><span class="rv">'      + esc(o.customer.contact) + '</span></div>' : '')
+    + '</div>'
+
+    // Order Details (full width)
+    + '<div class="box"><div class="box-title">Order Details</div>'
+    + (o.order.productName ? '<div class="r"><span class="rl">Product</span><span class="rv">'      + esc(o.order.productName) + '</span></div>' : '')
+    + (o.order.accessories ? '<div class="r"><span class="rl">Accessories</span><span class="rv">' + esc(o.order.accessories) + '</span></div>' : '')
+    + '<div class="r"><span class="rl">Quantity</span><span class="rv">'   + esc(String(o.order.qty))   + '</span></div>'
+    + '<div class="r"><span class="rl">Unit Price</span><span class="rv">' + fmtCurr(o.order.unitPrice) + '</span></div>'
+    + '<div class="r"><span class="rl">Value</span><span class="rv">'      + fmtCurr(o.order.value)     + '</span></div>'
     + '</div>'
 
     // Tax
@@ -1190,12 +1192,9 @@ function printOrder(orderId, fromAdmin) {
 
     // Terms
     + '<div class="terms-box"><div class="terms-label">Payment Terms</div>'
-    + '<div style="font-size:15px;font-weight:700;margin-top:2px;">' + esc(o.paymentTerms || '—') + '</div>'
-    + (o.instructions ? '<div style="margin-top:8px;font-size:14px;color:#444;"><b>Instructions:</b> ' + esc(o.instructions) + '</div>' : '')
+    + '<div style="font-size:12px;font-weight:700;margin-top:2px;">' + esc(o.paymentTerms || '—') + '</div>'
+    + (o.instructions ? '<div style="margin-top:6px;font-size:11px;color:#444;"><b>Instructions:</b> ' + esc(o.instructions) + '</div>' : '')
     + '</div>'
-
-    // Spacer pushes signatures to bottom
-    + '<div class="spacer"></div>'
 
     // Signatures
     + '<div class="sign-row">'
@@ -1212,9 +1211,9 @@ function printOrder(orderId, fromAdmin) {
     + '</div>' // end .page
 
     // Screen-only buttons
-    + '<div class="no-print" style="display:flex;justify-content:center;gap:12px;padding:20px;">'
-    + '  <button onclick="savePDF()" style="padding:14px 36px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
-    + '  <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:14px 28px;background:#eee;color:#333;border:none;border-radius:8px;font-size:16px;cursor:pointer;">✕ Close</button>'
+    + '<div class="no-print" style="display:flex;justify-content:center;gap:12px;padding:16px;">'
+    + '  <button onclick="savePDF()" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
+    + '  <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:12px 22px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Close</button>'
     + '</div>';
 
   window.scrollTo(0, 0);
