@@ -626,7 +626,7 @@ function validateGST(g) {
 //  MY ORDERS
 // ================================================================
 function renderMyOrders() {
-  loadMyOrders();
+  setTimeout(loadMyOrders, 0);
   return '<div id="myOrdersList">'
     + '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
     + '<div class="empty-txt">Loading your orders…</div></div>'
@@ -679,11 +679,11 @@ function showAdminTab(t) {
   } else if (t === 'orders') {
     c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
       + '<div class="empty-txt">Loading orders…</div></div>';
-    loadAllOrders();
+    setTimeout(loadAllOrders, 0);
   } else if (t === 'users') {
     c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
       + '<div class="empty-txt">Loading users…</div></div>';
-    loadAllUsers();
+    setTimeout(loadAllUsers, 0);
   } else if (t === 'settings') {
     c.innerHTML = renderAdminSettings();
   }
@@ -718,7 +718,7 @@ function renderAdminProducts() {
 function loadAllOrders() {
   var c = document.getElementById('adminContent');
   if (!c) return;
-  DB.ref('emco_orders').orderByChild('timestamp').once('value', function(snap) {
+  DB.ref('emco_orders').once('value', function(snap) {
     var orders = [];
     snap.forEach(function(ch) { var o = ch.val(); o.id = ch.key; orders.push(o); });
     orders.sort(function(a, b) { return b.timestamp - a.timestamp; });
@@ -728,33 +728,88 @@ function loadAllOrders() {
         + '<div class="empty-txt">No orders placed yet</div></div>';
       return;
     }
-    c.innerHTML = '<div style="font-size:12px;color:#555;font-weight:700;margin-bottom:8px;">'
-      + orders.length + ' order(s) total</div>'
-      + orders.map(function(o) {
-          return '<div class="order-card">'
-            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
-            + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
-            + '  <select style="font-size:12px;padding:5px 28px 5px 8px;width:auto;min-width:115px;" onchange="updateOrderStatus(\'' + esc(o.id) + '\',this.value)">'
-            + '    <option value="pending"'   + (o.status==='pending'   ?' selected':'') + '>Pending</option>'
-            + '    <option value="approved"'  + (o.status==='approved'  ?' selected':'') + '>Approved</option>'
-            + '    <option value="cancelled"' + (o.status==='cancelled' ?' selected':'') + '>Cancelled</option>'
-            + '  </select>'
-            + '</div>'
-            + '<div class="order-meta" style="margin-top:6px;">' + esc(o.salesExecName) + ' → ' + esc(o.customer.name) + '</div>'
-            + '<div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
-            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">'
-            + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
-            + '  <button class="btn btn-ghost btn-sm" onclick="showOrderDetail(\'' + esc(o.id) + '\',true)">View Details</button>'
-            + '</div>'
-            + '</div>';
-        }).join('');
+
+    // Group by sales exec
+    var execMap = {};
+    orders.forEach(function(o) {
+      var uid = o.salesExecUid || 'unknown';
+      if (!execMap[uid]) execMap[uid] = { name: o.salesExecName || 'Unknown', orders: [], total: 0 };
+      execMap[uid].orders.push(o);
+      execMap[uid].total += (o.totalValue || 0);
+    });
+
+    var totalValue = orders.reduce(function(s, o) { return s + (o.totalValue || 0); }, 0);
+    var html = '<div style="background:#E6F0FA;border-radius:10px;padding:12px 14px;margin-bottom:12px;">'
+      + '<div style="font-size:12px;font-weight:800;color:#003D6B;">📊 Summary</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+      + '  <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;">'
+      + '    <div style="font-size:20px;font-weight:900;color:#005A8E;">' + orders.length + '</div>'
+      + '    <div style="font-size:10px;color:#777;font-weight:700;">TOTAL ORDERS</div>'
+      + '  </div>'
+      + '  <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;">'
+      + '    <div style="font-size:15px;font-weight:900;color:#00915C;">' + fmtCurr(totalValue) + '</div>'
+      + '    <div style="font-size:10px;color:#777;font-weight:700;">TOTAL VALUE</div>'
+      + '  </div>'
+      + '</div></div>';
+
+    Object.keys(execMap).forEach(function(uid) {
+      var exec = execMap[uid];
+      var execTotal = exec.total;
+      var sectionId = 'exec_' + uid.replace(/[^a-z0-9]/gi, '_');
+      html += '<div class="sec" style="margin-bottom:13px;">'
+        + '<div class="sec-head" style="background:#EEF2FF;cursor:pointer;" onclick="toggleExec(\'' + sectionId + '\')">'
+        + '  <div class="sec-ico" style="background:#C5CAF5;">👤</div>'
+        + '  <div style="flex:1;min-width:0;">'
+        + '    <div class="sec-title" style="color:#1A1A7A;">' + esc(exec.name) + '</div>'
+        + '    <div style="font-size:11px;color:#5A5A9A;margin-top:2px;font-weight:600;">'
+        +       exec.orders.length + ' order' + (exec.orders.length > 1 ? 's' : '')
+        +       ' &nbsp;·&nbsp; ' + fmtCurr(execTotal)
+        + '    </div>'
+        + '  </div>'
+        + '  <span id="' + sectionId + '_arrow" style="color:#5A5A9A;font-size:18px;flex-shrink:0;">▼</span>'
+        + '</div>'
+        + '<div id="' + sectionId + '" style="display:none;">'
+        + exec.orders.map(function(o) {
+            var d = new Date(o.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+            return '<div style="padding:12px 14px;border-top:1px solid #F0F4F8;">'
+              + '  <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
+              + '    <span class="order-no">' + esc(o.orderNo) + '</span>'
+              + '    <span style="font-size:11px;color:#aaa;">' + d + '</span>'
+              + '  </div>'
+              + '  <div class="order-meta" style="margin-top:4px;">Customer: ' + esc(o.customer.name) + '</div>'
+              + '  <div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
+              + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">'
+              + '    <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
+              + '    <div style="display:flex;gap:6px;">'
+              + '      <button class="btn btn-ghost btn-sm" onclick="showOrderDetail(\'' + esc(o.id) + '\',true)">Details</button>'
+              + '      <button class="btn btn-danger btn-sm" onclick="deleteOrder(\'' + esc(o.id) + '\',\'' + esc(o.orderNo) + '\')">Delete</button>'
+              + '    </div>'
+              + '  </div>'
+              + '</div>';
+          }).join('')
+        + '</div></div>';
+    });
+
+    c.innerHTML = html;
   });
 }
 
-function updateOrderStatus(orderId, status) {
-  DB.ref('emco_orders/' + orderId + '/status').set(status, function(err) {
-    if (err) showToast('Update failed: ' + err.message, '#C62828');
-    else showToast('Status → ' + status, '#005A8E');
+function toggleExec(sectionId) {
+  var el = document.getElementById(sectionId);
+  var arrow = document.getElementById(sectionId + '_arrow');
+  if (!el) return;
+  var isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
+}
+
+function deleteOrder(orderId, orderNo) {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  if (!confirm('Delete order ' + orderNo + '?\nThis cannot be undone.')) return;
+  DB.ref('emco_orders/' + orderId).remove(function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    showToast('Order ' + orderNo + ' deleted', '#005A8E');
+    loadAllOrders();
   });
 }
 
