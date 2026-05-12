@@ -1031,7 +1031,7 @@ function showOrderDetail(orderId, fromAdmin) {
     + row('Date',            dateStr)
 
     + '<div style="display:flex;gap:9px;margin-top:20px;">'
-    + '  <button class="btn btn-print" style="flex:1;" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">🖨️ Print</button>'
+    + '  <button class="btn btn-print" style="flex:1;" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">🖨️ Save as PDF</button>'
     + '  <button class="btn btn-ghost" style="min-width:80px;" onclick="closeModal()">Close</button>'
     + '</div>'
     + '</div></div>';
@@ -1047,7 +1047,7 @@ function closeModal(e) {
 }
 
 // ================================================================
-//  PRINT ORDER
+//  PRINT ORDER — single page PDF layout
 // ================================================================
 function printOrder(orderId, fromAdmin) {
   var pool = fromAdmin ? ALL_ORDERS : MY_ORDERS.concat(ALL_ORDERS);
@@ -1055,21 +1055,127 @@ function printOrder(orderId, fromAdmin) {
   for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
   if (!o) return;
 
-  function tr(l, v) {
-    return '<tr><td style="padding:6px 8px;color:#555;font-weight:600;border-bottom:1px solid #eee;width:45%;">'
-      + esc(l) + '</td><td style="padding:6px 8px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">'
-      + esc(String(v || '')) + '</td></tr>';
-  }
-  function thead(t) {
-    return '<tr><td colspan="2" style="padding:10px 8px 4px;font-size:11px;font-weight:900;color:#005A8E;letter-spacing:.07em;text-transform:uppercase;border-top:2px solid #EBF2FA;">'
-      + t + '</td></tr>';
+  var dateStr = new Date(o.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'long', year:'numeric'});
+
+  var taxParts = [];
+  if (o.tax.cgstPct) taxParts.push('CGST ' + o.tax.cgstPct + '%: ' + fmtCurr(o.tax.cgstAmt));
+  if (o.tax.sgstPct) taxParts.push('SGST ' + o.tax.sgstPct + '%: ' + fmtCurr(o.tax.sgstAmt));
+  if (o.tax.igstPct) taxParts.push('IGST ' + o.tax.igstPct + '%: ' + fmtCurr(o.tax.igstAmt));
+  var taxStr = taxParts.length ? taxParts.join('&emsp;') : 'NIL';
+
+  function row(l, v) {
+    if (!v && v !== 0) return '';
+    return '<tr><td style="color:#666;padding:3px 6px 3px 0;white-space:nowrap;font-size:10px;vertical-align:top;">' + esc(l) + '</td>'
+      + '<td style="font-weight:700;padding:3px 0;font-size:10px;vertical-align:top;">' + esc(String(v)) + '</td></tr>';
   }
 
-  var taxLines = '';
-  if (o.tax.cgstPct) taxLines += tr('CGST ' + o.tax.cgstPct + '%', fmtCurr(o.tax.cgstAmt));
-  if (o.tax.sgstPct) taxLines += tr('SGST ' + o.tax.sgstPct + '%', fmtCurr(o.tax.sgstAmt));
-  if (o.tax.igstPct) taxLines += tr('IGST ' + o.tax.igstPct + '%', fmtCurr(o.tax.igstAmt));
-  if (!taxLines) taxLines = tr('Tax', 'NIL');
+  var pa = document.getElementById('printArea');
+  pa.innerHTML = '<style>'
+    + '@page{size:A4;margin:10mm;}'
+    + '*{box-sizing:border-box;margin:0;padding:0;}'
+    + 'body{font-family:Arial,sans-serif;font-size:11px;color:#111;}'
+    + '.hdr{display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:3px solid #005A8E;margin-bottom:8px;}'
+    + '.logo{width:48px;height:48px;object-fit:contain;border-radius:6px;}'
+    + '.co-name{font-size:17px;font-weight:900;color:#003D6B;}'
+    + '.co-sub{font-size:9px;color:#777;margin-top:2px;}'
+    + '.order-meta-bar{background:#F0F6FC;border-radius:5px;padding:6px 10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}'
+    + '.order-no-big{font-size:14px;font-weight:900;color:#003D6B;}'
+    + '.two-col{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}'
+    + '.box{border:1px solid #DDE8F4;border-radius:5px;padding:7px 10px;}'
+    + '.box-title{font-size:9px;font-weight:900;color:#005A8E;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;border-bottom:1px solid #EBF4FF;padding-bottom:3px;}'
+    + '.tax-bar{border:1px solid #DDE8F4;border-radius:5px;padding:7px 10px;margin-bottom:8px;}'
+    + '.total-bar{background:#003D6B;color:#fff;border-radius:5px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}'
+    + '.total-lbl{font-size:11px;font-weight:700;}'
+    + '.total-val{font-size:18px;font-weight:900;}'
+    + '.terms-box{border:1px solid #DDE8F4;border-radius:5px;padding:7px 10px;margin-bottom:8px;}'
+    + '.sign-row{display:flex;justify-content:space-between;margin-top:10px;}'
+    + '.sign-box{text-align:center;}'
+    + '.sign-line{border-top:1px solid #888;width:150px;margin-bottom:4px;}'
+    + '.sign-lbl{font-size:9px;color:#888;}'
+    + '.footer{display:flex;justify-content:space-between;font-size:8px;color:#aaa;margin-top:8px;border-top:1px solid #eee;padding-top:6px;}'
+    + '.no-print{text-align:center;margin:16px 0;}'
+    + '@media print{.no-print{display:none;}}'
+    + '</style>'
+
+    // Header
+    + '<div class="hdr">'
+    + '  <img class="logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
+    + '  <div style="flex:1;">'
+    + '    <div class="co-name">Emco Meditek Pvt Ltd</div>'
+    + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.0</div>'
+    + '  </div>'
+    + '  <div style="text-align:right;font-size:9px;color:#888;">Printed: ' + new Date().toLocaleDateString('en-IN') + '</div>'
+    + '</div>'
+
+    // Order meta bar
+    + '<div class="order-meta-bar">'
+    + '  <span class="order-no-big">' + esc(o.orderNo) + '</span>'
+    + '  <span style="font-size:10px;color:#555;"><b>Date:</b> ' + esc(dateStr) + '&emsp;<b>Exec:</b> ' + esc(o.salesExecName) + '</span>'
+    + '</div>'
+
+    // Two-column: Customer + Order
+    + '<div class="two-col">'
+    + '  <div class="box">'
+    + '    <div class="box-title">Customer</div>'
+    + '    <table style="width:100%;border-collapse:collapse;">'
+    + row('Name', o.customer.name)
+    + row('Address', o.customer.address)
+    + (o.customer.gst ? row('GST No.', o.customer.gst) : '')
+    + row('Contact', o.customer.contact)
+    + '    </table>'
+    + '  </div>'
+    + '  <div class="box">'
+    + '    <div class="box-title">Order Details</div>'
+    + '    <table style="width:100%;border-collapse:collapse;">'
+    + row('Product', o.order.productName)
+    + (o.order.accessories ? row('Accessories', o.order.accessories) : '')
+    + row('Quantity', o.order.qty)
+    + row('Unit Price', fmtCurr(o.order.unitPrice))
+    + row('Value', fmtCurr(o.order.value))
+    + '    </table>'
+    + '  </div>'
+    + '</div>'
+
+    // Tax
+    + '<div class="tax-bar">'
+    + '  <span style="font-size:9px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.06em;">Tax &nbsp;</span>'
+    + '  <span style="font-size:10px;font-weight:700;">' + taxStr + '</span>'
+    + '</div>'
+
+    // Total
+    + '<div class="total-bar">'
+    + '  <span class="total-lbl">TOTAL VALUE</span>'
+    + '  <span class="total-val">' + fmtCurr(o.totalValue) + '</span>'
+    + '</div>'
+
+    // Terms
+    + '<div class="terms-box">'
+    + '  <span style="font-size:9px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.06em;">Payment Terms: </span>'
+    + '  <span style="font-size:10px;font-weight:700;">' + esc(o.paymentTerms || '—') + '</span>'
+    + (o.instructions ? '<div style="margin-top:4px;font-size:10px;color:#444;"><b>Instructions:</b> ' + esc(o.instructions) + '</div>' : '')
+    + '</div>'
+
+    // Signatures
+    + '<div class="sign-row">'
+    + '  <div class="sign-box"><div class="sign-line"></div><div class="sign-lbl">Customer Signature</div></div>'
+    + '  <div class="sign-box"><div class="sign-line"></div><div class="sign-lbl">Authorized Signatory</div></div>'
+    + '</div>'
+
+    // Footer
+    + '<div class="footer">'
+    + '  <span>Emco Meditek Pvt Ltd — Authorized Sales Document</span>'
+    + '  <span>' + esc(o.orderNo) + '</span>'
+    + '</div>'
+
+    // Screen-only buttons
+    + '<div class="no-print" style="margin-top:20px;">'
+    + '  <button onclick="window.print()" style="padding:12px 32px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-right:10px;">🖨️ Save as PDF</button>'
+    + '  <button onclick="document.getElementById(\'printArea\').innerHTML=\'\'" style="padding:12px 20px;background:#eee;color:#333;border:none;border-radius:8px;font-size:14px;cursor:pointer;">✕ Close</button>'
+    + '</div>';
+
+  window.scrollTo(0, 0);
+  window.print();
+}
 
   var dateStr = new Date(o.timestamp).toLocaleDateString('en-IN', {
     day:'2-digit', month:'long', year:'numeric'
