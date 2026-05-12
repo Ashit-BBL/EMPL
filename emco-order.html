@@ -1106,7 +1106,7 @@ function printOrder(orderId, fromAdmin) {
     + '@page{size:A4;margin:12mm;}'
     + '*{box-sizing:border-box;margin:0;padding:0;}'
     + 'body,html{height:100%;font-family:Arial,sans-serif;font-size:15px;color:#111;}'
-    + '.page{display:flex;flex-direction:column;height:calc(297mm - 24mm);padding:0;}'
+    + '.page{display:flex;flex-direction:column;min-height:calc(297mm - 24mm);padding:0;}'
     + '.co-hdr{text-align:center;padding:16px 0 12px;border-bottom:4px solid #005A8E;margin-bottom:14px;display:flex;align-items:center;gap:14px;}'
     + '.co-logo{width:62px;height:62px;object-fit:contain;border-radius:8px;flex-shrink:0;}'
     + '.co-text{flex:1;text-align:left;}'
@@ -1138,7 +1138,7 @@ function printOrder(orderId, fromAdmin) {
     + '.sign-lbl{font-size:10px;color:#666;font-weight:600;}'
     + '.footer{display:flex;justify-content:space-between;font-size:9px;color:#aaa;margin-top:12px;border-top:1px solid #ddd;padding-top:8px;}'
     + '.no-print{text-align:center;padding:20px;}'
-    + '@media print{.no-print{display:none!important;}}'
+    + '@media print{.no-print{display:none!important;}.page{height:calc(297mm - 24mm);overflow:hidden;}}'
     + '</style>'
 
     + '<div class="page">'
@@ -1213,11 +1213,48 @@ function printOrder(orderId, fromAdmin) {
 
     // Screen-only buttons
     + '<div class="no-print" style="display:flex;justify-content:center;gap:12px;padding:20px;">'
-    + '  <button onclick="window.print()" style="padding:14px 36px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
+    + '  <button onclick="savePDF()" style="padding:14px 36px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
     + '  <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:14px 28px;background:#eee;color:#333;border:none;border-radius:8px;font-size:16px;cursor:pointer;">✕ Close</button>'
     + '</div>';
 
   window.scrollTo(0, 0);
+}
+
+// ================================================================
+//  SAVE AS PDF — switches overlay from fixed to static so
+//  position:fixed doesn't repeat on every printed page,
+//  manually hides the app, prints, then restores via afterprint.
+// ================================================================
+function savePDF() {
+  var pa    = document.getElementById('printArea');
+  var root  = document.getElementById('root');
+  var modal = document.getElementById('modalRoot');
+  var noP   = pa.querySelector('.no-print');
+
+  // Hide the action buttons so they don't appear in print
+  if (noP) noP.style.display = 'none';
+
+  // Switch overlay from fixed (repeats per page) to static (flows once)
+  pa.style.position = 'static';
+  pa.style.zIndex   = '';
+  pa.style.height   = 'auto';
+  pa.style.overflow = 'visible';
+  pa.style.padding  = '0';
+
+  // Hide rest of app so only printArea content is visible
+  root.style.display  = 'none';
+  modal.style.display = 'none';
+
+  function restore() {
+    pa.innerHTML        = '';
+    pa.style.cssText    = '';
+    root.style.display  = '';
+    modal.style.display = '';
+    window.removeEventListener('afterprint', restore);
+  }
+
+  window.addEventListener('afterprint', restore);
+  window.print();
 }
 
 function buildShareText(o) {
