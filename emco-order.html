@@ -308,7 +308,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.3</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.4</div>'
     + '</div>';
 }
 
@@ -340,14 +340,14 @@ function renderDashboard() {
     + '  </div>'
     + '  <div class="header-info"><h1>Emco Meditek Pvt Ltd</h1><p>Order Management System</p></div>'
     + '  <div class="header-right">'
-    + '    <span style="font-size:11px;color:rgba(255,255,255,.8);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(USER_NAME) + '</span>'
+    + '    <button onclick="showProfileModal()" style="font-size:11px;color:rgba(255,255,255,.9);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;border:none;cursor:pointer;padding:2px 0;">' + esc(USER_NAME) + ' ✏️</button>'
     + '    <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 10px;min-height:26px;" onclick="doLogout()">Sign Out</button>'
     + '  </div>'
     + '</div>'
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.3</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.4</div>'
     + '</div>';
 }
 
@@ -593,10 +593,48 @@ function submitOrder() {
   var igstAmt = value * igstPct / 100;
   var total   = value + cgstAmt + sgstAmt + igstAmt;
   var now     = Date.now();
-  var orderNo = genOrderNo(now);
+
+  // Sequential order number: get+increment per-day counter from Firebase
+  var d = new Date(now);
+  var dateKey = d.getFullYear()
+    + String(d.getMonth() + 1).padStart(2,'0')
+    + String(d.getDate()).padStart(2,'0');
+
+  setBtnState('submitBtn', true, EDITING_ORDER_ID ? 'Saving…' : 'Submitting…');
+
+  if (EDITING_ORDER_ID) {
+    // Edit mode — no new order number needed
+    _doSaveOrder(null, now, value, cgstAmt, sgstAmt, igstAmt, total,
+      custName, custAddr, deliveryAddr, custGst, custPhone,
+      productId, accessories, qty, unitPrice,
+      cgstPct, sgstPct, igstPct, payTerms, instructions);
+    return;
+  }
+
+  DB.ref('emco_config/counter/' + dateKey).transaction(function(cur) {
+    return (cur || 0) + 1;
+  }, function(err, committed, snap) {
+    if (err || !committed) {
+      setBtnState('submitBtn', false, '✅  Submit Order');
+      showToast('Could not generate order number, please retry', '#C62828');
+      return;
+    }
+    _doSaveOrder(
+      'EMCO-' + dateKey + '-' + String(snap.val()).padStart(3, '0'),
+      now, value, cgstAmt, sgstAmt, igstAmt, total,
+      custName, custAddr, deliveryAddr, custGst, custPhone,
+      productId, accessories, qty, unitPrice,
+      cgstPct, sgstPct, igstPct, payTerms, instructions);
+  });
+}
+
+function _doSaveOrder(orderNo, now, value, cgstAmt, sgstAmt, igstAmt, total,
+    custName, custAddr, deliveryAddr, custGst, custPhone,
+    productId, accessories, qty, unitPrice,
+    cgstPct, sgstPct, igstPct, payTerms, instructions) {
 
   var orderData = {
-    orderNo:       orderNo,
+    orderNo:       orderNo || '',
     timestamp:     now,
     salesExecUid:  USER.uid,
     salesExecName: USER_NAME,
@@ -631,7 +669,6 @@ function submitOrder() {
       paymentTerms: orderData.paymentTerms,
       instructions: orderData.instructions
     };
-    setBtnState('submitBtn', true, 'Saving…');
     DB.ref('emco_orders/' + EDITING_ORDER_ID).update(updateData, function(err) {
       setBtnState('submitBtn', false, '✏️  Update Order');
       if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
@@ -643,7 +680,6 @@ function submitOrder() {
       render();
     });
   } else {
-    setBtnState('submitBtn', true, 'Submitting…');
     DB.ref('emco_orders').push(orderData, function(err) {
       setBtnState('submitBtn', false, '✅  Submit Order');
       if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
@@ -1106,7 +1142,7 @@ function orderCardHTML(o) {
   return '<div class="order-card" onclick="showOrderDetail(\'' + esc(o.id) + '\',false)">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">'
     + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
-    + '  <span class="status-badge s-' + esc(o.status || 'pending') + '">' + esc(o.status || 'pending') + '</span>'
+    + '  <span style="font-size:11px;color:#888;">' + esc(dateStr) + '</span>'
     + '</div>'
     + '<div class="order-meta" style="margin-top:5px;">' + esc(o.customer.name) + '</div>'
     + '<div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
@@ -1196,6 +1232,47 @@ function closeModal(e) {
 }
 
 // ================================================================
+//  PROFILE MODAL — user can change their display name
+// ================================================================
+function showProfileModal() {
+  var html = '<div class="modal-overlay" id="profileModal" onclick="closeProfileModal(event)">'
+    + '<div class="modal-sheet" onclick="event.stopPropagation()" style="max-width:400px;">'
+    + '<div class="modal-handle"></div>'
+    + '<div class="modal-title">Edit Profile</div>'
+    + '<div class="field"><label class="fl">Your Name</label>'
+    + '  <input type="text" id="profileName" value="' + esc(USER_NAME) + '" autocapitalize="words" placeholder="Your full name"/>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">'
+    + '  <button class="btn btn-primary" onclick="saveProfile()">💾 Save</button>'
+    + '  <button class="btn btn-ghost" onclick="closeProfileModal()">✕ Cancel</button>'
+    + '</div>'
+    + '</div></div>';
+  document.getElementById('modalRoot').innerHTML = html;
+  document.body.style.overflow = 'hidden';
+  setTimeout(function() { var e = document.getElementById('profileName'); if (e) { e.focus(); e.select(); } }, 80);
+}
+
+function closeProfileModal(e) {
+  if (e && e.target.id !== 'profileModal') return;
+  document.getElementById('modalRoot').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+function saveProfile() {
+  var newName = (document.getElementById('profileName') || {}).value || '';
+  newName = newName.trim();
+  if (!newName) { showToast('Name cannot be empty', '#C62828'); return; }
+  DB.ref('emco_users/' + USER.uid + '/name').set(newName, function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    USER_NAME = newName;
+    document.getElementById('modalRoot').innerHTML = '';
+    document.body.style.overflow = '';
+    showToast('Name updated to ' + newName, '#00915C');
+    render();
+  });
+}
+
+// ================================================================
 //  PRINT ORDER — single page PDF layout
 // ================================================================
 function printOrder(orderId, fromAdmin) {
@@ -1269,7 +1346,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.3</div>'
+    + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.4</div>'
     + '  </div>'
     + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
