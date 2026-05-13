@@ -203,6 +203,7 @@ var TAB       = 'newOrder';
 var PRODUCTS  = {};       // { firebaseKey: productName }
 var MY_ORDERS = [];
 var ALL_ORDERS= [];
+var EDITING_ORDER_ID = null;
 var DB        = null;
 var AUTH_FB   = null;
 var CONFIG_OK = false;
@@ -498,8 +499,14 @@ function renderNewOrder() {
 
     // ── Submit ──
     + '<div class="no-print">'
-    + '  <button id="submitBtn" class="btn btn-success btn-full" onclick="submitOrder()">✅&nbsp; Submit Order</button>'
-    + '  <p style="text-align:center;font-size:11px;color:#aaa;margin-top:8px;">Order will be sent to admin for review</p>'
+    + (EDITING_ORDER_ID
+        ? '<div style="background:#FFF3CD;border:1.5px solid #FFD966;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#7A5100;font-weight:700;">✏️ Editing existing order — changes will overwrite the original</div>'
+        : '')
+    + '  <button id="submitBtn" class="btn btn-full" style="background:' + (EDITING_ORDER_ID ? '#E65100' : '#00915C') + ';color:#fff;" onclick="submitOrder()">'
+    + (EDITING_ORDER_ID ? '✏️&nbsp; Update Order' : '✅&nbsp; Submit Order') + '</button>'
+    + '  <p style="text-align:center;font-size:11px;color:#aaa;margin-top:8px;">'
+    + (EDITING_ORDER_ID ? 'Saving changes to existing order' : 'Order will be sent to admin for review')
+    + '  </p>'
     + '</div>';
 }
 
@@ -615,13 +622,35 @@ function submitOrder() {
     instructions:  instructions
   };
 
-  setBtnState('submitBtn', true, 'Submitting…');
-  DB.ref('emco_orders').push(orderData, function(err) {
-    setBtnState('submitBtn', false, '✅  Submit Order');
-    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
-    showToast('✅ Order ' + orderNo + ' submitted!', '#00915C');
-    clearOrderForm();
-  });
+  if (EDITING_ORDER_ID) {
+    var updateData = {
+      customer:     orderData.customer,
+      order:        orderData.order,
+      tax:          orderData.tax,
+      totalValue:   orderData.totalValue,
+      paymentTerms: orderData.paymentTerms,
+      instructions: orderData.instructions
+    };
+    setBtnState('submitBtn', true, 'Saving…');
+    DB.ref('emco_orders/' + EDITING_ORDER_ID).update(updateData, function(err) {
+      setBtnState('submitBtn', false, '✏️  Update Order');
+      if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+      showToast('✅ Order updated!', '#00915C');
+      EDITING_ORDER_ID = null;
+      MY_ORDERS = [];
+      clearOrderForm();
+      TAB = 'myOrders';
+      render();
+    });
+  } else {
+    setBtnState('submitBtn', true, 'Submitting…');
+    DB.ref('emco_orders').push(orderData, function(err) {
+      setBtnState('submitBtn', false, '✅  Submit Order');
+      if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+      showToast('✅ Order ' + orderNo + ' submitted!', '#00915C');
+      clearOrderForm();
+    });
+  }
 }
 
 function clearOrderForm() {
@@ -635,6 +664,67 @@ function clearOrderForm() {
   var daw  = document.getElementById('deliveryAddrWrap');
   if (cb)  cb.checked = true;
   if (daw) daw.style.display = 'none';
+  EDITING_ORDER_ID = null;
+}
+
+// ================================================================
+//  EDIT ORDER — pre-fills the New Order form with saved data
+// ================================================================
+function editOrder(orderId) {
+  var o = null;
+  for (var i = 0; i < MY_ORDERS.length; i++) {
+    if (MY_ORDERS[i].id === orderId) { o = MY_ORDERS[i]; break; }
+  }
+  if (!o) return;
+
+  EDITING_ORDER_ID = orderId;
+  document.getElementById('modalRoot').innerHTML = '';
+  document.body.style.overflow = '';
+  TAB = 'newOrder';
+  render();
+
+  setTimeout(function() {
+    var sv = function(id, val) { var e = document.getElementById(id); if (e) e.value = val; };
+
+    sv('custName',    o.customer.name    || '');
+    sv('custAddr',    o.customer.address || '');
+    sv('custGst',     o.customer.gst     || '');
+    sv('custPhone',   o.customer.contact || '');
+
+    var sameAsBilling = !o.customer.deliveryAddr || o.customer.deliveryAddr === o.customer.address;
+    var cb  = document.getElementById('sameAddr');
+    var daw = document.getElementById('deliveryAddrWrap');
+    if (cb)  cb.checked = sameAsBilling;
+    if (daw) daw.style.display = sameAsBilling ? 'none' : 'block';
+    if (!sameAsBilling) sv('deliveryAddr', o.customer.deliveryAddr || '');
+
+    var productSel = document.getElementById('product');
+    if (productSel) productSel.value = o.order.productId || '';
+    sv('accessories', o.order.accessories || '');
+    sv('qty',         String(o.order.qty       || ''));
+    sv('unitPrice',   String(o.order.unitPrice || ''));
+
+    sv('cgstPct', String(o.tax.cgstPct || ''));
+    sv('sgstPct', String(o.tax.sgstPct || ''));
+    sv('igstPct', String(o.tax.igstPct || ''));
+
+    var stdTerms = ['Advance','Within one week','Within 15 days','30 days'];
+    var payTermsSel = document.getElementById('payTerms');
+    if (payTermsSel) {
+      if (stdTerms.indexOf(o.paymentTerms) !== -1) {
+        payTermsSel.value = o.paymentTerms;
+      } else {
+        payTermsSel.value = '__custom__';
+        sv('customTerms', o.paymentTerms || '');
+        var cw = document.getElementById('customTermsWrap');
+        if (cw) cw.style.display = 'block';
+      }
+    }
+    sv('instructions', o.instructions || '');
+
+    calcAll();
+    showToast('Editing ' + o.orderNo + ' — tap Update Order to save', '#005A8E');
+  }, 80);
 }
 
 function genOrderNo(ts) {
@@ -1089,8 +1179,9 @@ function showOrderDetail(orderId, fromAdmin) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px;">'
     + '  <button class="btn btn-success" onclick="whatsappOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">💬 WhatsApp</button>'
     + '  <button class="btn btn-primary" onclick="shareOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📤 Share</button>'
-    + '  <button class="btn btn-print" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">🖨️ Save as PDF</button>'
-    + '  <button class="btn btn-ghost" onclick="closeModal()">✕ Close</button>'
+    + (!fromAdmin ? '  <button class="btn" style="background:#E65100;color:#fff;" onclick="editOrder(\'' + esc(orderId) + '\')">✏️ Edit Order</button>' : '')
+    + '  <button class="btn btn-print" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">' + (fromAdmin ? '🖨️ Print' : '🖨️ Save as PDF') + '</button>'
+    + '  <button class="btn btn-ghost" onclick="closeModal()' + (fromAdmin ? '' : '') + '">' + (fromAdmin ? '✕ Close' : '✕ Close') + '</button>'
     + '</div>'
     + '</div></div>';
 
@@ -1241,7 +1332,7 @@ function printOrder(orderId, fromAdmin) {
     // Screen-only buttons
     + '<div class="no-print" style="text-align:center;padding:16px;">'
     + '  <div style="display:flex;justify-content:center;gap:12px;margin-bottom:8px;">'
-    + '    <button onclick="savePDF()" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ Save as PDF</button>'
+    + '    <button onclick="savePDF()" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ ' + (fromAdmin ? 'Print' : 'Save as PDF') + '</button>'
     + '    <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:12px 22px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Close</button>'
     + '  </div>'
     + '  <div style="font-size:11px;color:#888;">In print dialog — select <b>A4</b> paper &amp; set margins to <b>None</b></div>'
