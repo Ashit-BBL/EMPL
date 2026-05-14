@@ -203,7 +203,12 @@ var TAB       = 'newOrder';
 var PRODUCTS  = {};       // { firebaseKey: productName }
 var MY_ORDERS = [];
 var ALL_ORDERS= [];
-var EDITING_ORDER_ID = null;
+var EDITING_ORDER_ID      = null;
+var CONVERTING_FROM_QUOT_ID = null;
+var MY_QUOTATIONS          = [];
+var ALL_QUOTATIONS         = [];
+var NOTIF_UNREAD           = 0;
+var NEXT_PROD_IDX          = 1;
 var DB        = null;
 var AUTH_FB   = null;
 var CONFIG_OK = false;
@@ -236,12 +241,12 @@ window.onload = function() {
             if (cs && cs.val()) ADMIN_CODE = cs.val();
             SCR = 'dashboard';
             TAB = 'newOrder';
-            loadProducts(render);
+            loadProducts(function(){if(USER_ROLE==='admin')listenAdminNotifications();render();});
           }, function() {
             // Permission error fallback — use default code
             SCR = 'dashboard';
             TAB = 'newOrder';
-            loadProducts(render);
+            loadProducts(function(){if(USER_ROLE==='admin')listenAdminNotifications();render();});
           });
         }, function(err) {
           console.error('User load error:', err);
@@ -308,7 +313,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.4</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.5</div>'
     + '</div>';
 }
 
@@ -318,7 +323,7 @@ function renderLogin() {
 function renderDashboard() {
   var tabs = USER_ROLE === 'admin'
     ? [{id:'admin', icon:'⚙️', label:'Admin Panel'}]
-    : [{id:'newOrder', icon:'📋', label:'New Order'}, {id:'myOrders', icon:'📦', label:'My Orders'}];
+    : [{id:'newOrder', icon:'📋', label:'New Order'}, {id:'myQuotations', icon:'📄', label:'Quotations'}, {id:'myOrders', icon:'📦', label:'My Orders'}];
 
   if (USER_ROLE === 'admin' && TAB !== 'admin') TAB = 'admin';
 
@@ -330,9 +335,10 @@ function renderDashboard() {
     + '</div>';
 
   var content = '';
-  if (TAB === 'newOrder')  content = renderNewOrder();
-  else if (TAB === 'myOrders') content = renderMyOrders();
-  else if (TAB === 'admin')    content = renderAdmin();
+  if (TAB === 'newOrder')          content = renderNewOrder();
+  else if (TAB === 'myQuotations') content = renderMyQuotations();
+  else if (TAB === 'myOrders')     content = renderMyOrders();
+  else if (TAB === 'admin')        content = renderAdmin();
 
   return '<div class="header no-print">'
     + '  <div class="header-logo">'
@@ -347,7 +353,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.4</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.5</div>'
     + '</div>';
 }
 
@@ -355,12 +361,7 @@ function renderDashboard() {
 //  NEW ORDER FORM
 // ================================================================
 function renderNewOrder() {
-  var prodOpts = '<option value="">— Select Product —</option>';
-  Object.keys(PRODUCTS).sort(function(a,b){
-    return PRODUCTS[a].localeCompare(PRODUCTS[b]);
-  }).forEach(function(id) {
-    prodOpts += '<option value="' + esc(id) + '">' + esc(PRODUCTS[id]) + '</option>';
-  });
+  NEXT_PROD_IDX = 1;  // reset row counter each time form renders
 
   return ''
     // ── Print-only header ──
@@ -404,30 +405,18 @@ function renderNewOrder() {
     + '  </div>'
     + '</div>'
 
-    // ── Order Details ──
+    // ── Order Details (multi-product) ──
     + '<div class="sec">'
     + '  <div class="sec-head" style="background:#E6F5EE;">'
     + '    <div class="sec-ico" style="background:#B4E0C6;">🏥</div>'
     + '    <span class="sec-title" style="color:#1A4A2A;">Order Details</span>'
     + '  </div>'
     + '  <div class="sec-body">'
-    + '    <div class="field"><label class="fl">Product *</label>'
-    + '      <select id="product" onchange="calcAll()">' + prodOpts + '</select>'
+    + '    <div id="productRows">'
+    +       '<div class="prod-row" data-idx="0">' + buildProdRowHTML(0, false) + '</div>'
     + '    </div>'
-    + '    <div class="field"><label class="fl">Accessories / Configuration</label>'
-    + '      <input type="text" id="accessories" placeholder="Optional — e.g. extra probes, stands, cables…"/>'
-    + '    </div>'
-    + '    <div class="g2">'
-    + '      <div class="field"><label class="fl">Quantity *</label>'
-    + '        <input type="number" id="qty" min="1" placeholder="0" inputmode="numeric" oninput="calcAll()"/>'
-    + '      </div>'
-    + '      <div class="field"><label class="fl">Unit Price ₹ *</label>'
-    + '        <input type="number" id="unitPrice" min="0" step="0.01" placeholder="0.00" inputmode="decimal" oninput="calcAll()"/>'
-    + '      </div>'
-    + '    </div>'
-    + '    <div class="field">'
-    + '      <label class="fl">Value ₹ <span class="calc-badge">AUTO</span></label>'
-    + '      <input type="text" id="value" readonly placeholder="0.00"/>'
+    + '    <div style="margin-top:8px;">'
+    + '      <button id="addProdBtn" type="button" class="btn btn-ghost btn-sm btn-full" onclick="addProductRow()" style="font-size:12px;color:#005A8E;">+ Add Another Product <span style="color:#aaa;font-weight:400;">(max 3)</span></button>'
     + '    </div>'
     + '  </div>'
     + '</div>'
@@ -500,12 +489,19 @@ function renderNewOrder() {
     // ── Submit ──
     + '<div class="no-print">'
     + (EDITING_ORDER_ID
-        ? '<div style="background:#FFF3CD;border:1.5px solid #FFD966;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#7A5100;font-weight:700;">✏️ Editing existing order — changes will overwrite the original</div>'
-        : '')
-    + '  <button id="submitBtn" class="btn btn-full" style="background:' + (EDITING_ORDER_ID ? '#E65100' : '#00915C') + ';color:#fff;" onclick="submitOrder()">'
-    + (EDITING_ORDER_ID ? '✏️&nbsp; Update Order' : '✅&nbsp; Submit Order') + '</button>'
-    + '  <p style="text-align:center;font-size:11px;color:#aaa;margin-top:8px;">'
-    + (EDITING_ORDER_ID ? 'Saving changes to existing order' : 'Order will be sent to admin for review')
+        ? '<div style="background:#FFF3CD;border:1.5px solid #FFD966;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#7A5100;font-weight:700;">✏️ Editing order — changes will overwrite the original</div>'
+          + '<button id="submitBtn" class="btn btn-full" style="background:#E65100;color:#fff;margin-bottom:6px;" onclick="submitOrder()">Update Order</button>'
+        : CONVERTING_FROM_QUOT_ID
+          ? '<div style="background:#E8F5E9;border:1.5px solid #A8D8B0;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#1A4A2A;font-weight:700;">✏️ Converting quotation to order — update values as negotiated</div>'
+            + '<button id="submitBtn" class="btn btn-full" style="background:#00915C;color:#fff;margin-bottom:6px;" onclick="submitOrder()">Convert to Order</button>'
+          : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+            + '<button id="quotBtn" class="btn btn-full" style="background:#005A8E;color:#fff;" onclick="submitQuotation()">Save Quotation</button>'
+            + '<button id="submitBtn" class="btn btn-full" style="background:#00915C;color:#fff;" onclick="submitOrder()">Place Order</button>'
+            + '</div>')
+    + '  <p style="text-align:center;font-size:11px;color:#aaa;margin-top:4px;">'
+    + (EDITING_ORDER_ID ? 'Saving changes to existing order'
+       : CONVERTING_FROM_QUOT_ID ? 'Will create a new EMCO order from this quotation'
+       : 'Save as quotation first, or place order directly')
     + '  </p>'
     + '</div>';
 }
@@ -514,21 +510,26 @@ function renderNewOrder() {
 //  CALCULATIONS
 // ================================================================
 function calcAll() {
-  var qty      = parseFloat(gv('qty'))       || 0;
-  var price    = parseFloat(gv('unitPrice')) || 0;
-  var value    = qty * price;
-  var cgstPct  = parseFloat(gv('cgstPct'))   || 0;
-  var sgstPct  = parseFloat(gv('sgstPct'))   || 0;
-  var igstPct  = parseFloat(gv('igstPct'))   || 0;
-  var cgstAmt  = value * cgstPct / 100;
-  var sgstAmt  = value * sgstPct / 100;
-  var igstAmt  = value * igstPct / 100;
-  var total    = value + cgstAmt + sgstAmt + igstAmt;
-  sv('value',     fmt2(value));
-  sv('cgstAmt',   fmt2(cgstAmt));
-  sv('sgstAmt',   fmt2(sgstAmt));
-  sv('igstAmt',   fmt2(igstAmt));
-  sv('totalValue',fmt2(total));
+  var subtotal = 0;
+  document.querySelectorAll('.prod-row').forEach(function(row) {
+    var idx   = row.getAttribute('data-idx');
+    var qty   = parseFloat(gv('qty_' + idx))       || 0;
+    var price = parseFloat(gv('unitPrice_' + idx)) || 0;
+    var val   = qty * price;
+    sv('value_' + idx, fmt2(val));
+    subtotal += val;
+  });
+  var cgstPct = parseFloat(gv('cgstPct')) || 0;
+  var sgstPct = parseFloat(gv('sgstPct')) || 0;
+  var igstPct = parseFloat(gv('igstPct')) || 0;
+  var cgstAmt = subtotal * cgstPct / 100;
+  var sgstAmt = subtotal * sgstPct / 100;
+  var igstAmt = subtotal * igstPct / 100;
+  var total   = subtotal + cgstAmt + sgstAmt + igstAmt;
+  sv('cgstAmt',    fmt2(cgstAmt));
+  sv('sgstAmt',    fmt2(sgstAmt));
+  sv('igstAmt',    fmt2(igstAmt));
+  sv('totalValue', fmt2(total));
 }
 
 function toggleCustomTerms() {
@@ -548,131 +549,187 @@ function syncDeliveryAddr() {
 }
 
 // ================================================================
-//  SUBMIT ORDER
+//  COLLECT FORM ITEMS (multi-product support)
 // ================================================================
-function submitOrder() {
+function collectFormItems() {
+  var items = [];
+  document.querySelectorAll('.prod-row').forEach(function(row) {
+    var idx      = row.getAttribute('data-idx');
+    var pid      = gv('product_' + idx);
+    if (!pid) return;
+    var qty      = parseFloat(gv('qty_' + idx))       || 0;
+    var unitPrice= parseFloat(gv('unitPrice_' + idx)) || 0;
+    items.push({
+      productId:   pid,
+      productName: PRODUCTS[pid] || pid,
+      accessories: gv('accessories_' + idx).trim(),
+      qty:         qty,
+      unitPrice:   unitPrice,
+      value:       qty * unitPrice
+    });
+  });
+  return items;
+}
+
+function getItems(o) {
+  if (o.items && o.items.length > 0) return o.items;
+  if (o.order && (o.order.productId || o.order.productName)) return [o.order];
+  return [];
+}
+
+function buildProdRowHTML(idx, showRemove) {
+  var prodOpts = '<option value="">— Select Product —</option>';
+  Object.keys(PRODUCTS).sort(function(a,b){return PRODUCTS[a].localeCompare(PRODUCTS[b]);}).forEach(function(id){
+    prodOpts += '<option value="' + esc(id) + '">' + esc(PRODUCTS[id]) + '</option>';
+  });
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+    + '<span class="fl prod-row-num" style="margin:0;">Product' + (showRemove ? '' : ' *') + '</span>'
+    + (showRemove ? '<button type="button" class="btn btn-danger btn-sm" style="padding:4px 10px;min-height:26px;font-size:11px;" onclick="removeProductRow(' + idx + ')">Remove</button>' : '')
+    + '</div>'
+    + '<select id="product_' + idx + '" onchange="calcAll()" style="margin-bottom:10px;">' + prodOpts + '</select>'
+    + '<input type="text" id="accessories_' + idx + '" placeholder="Accessories / Configuration (optional)" style="margin-bottom:10px;"/>'
+    + '<div class="g2">'
+    + '<div class="field"><label class="fl">Qty *</label><input type="number" id="qty_' + idx + '" min="1" placeholder="0" inputmode="numeric" oninput="calcAll()"/></div>'
+    + '<div class="field"><label class="fl">Unit Price ₹ *</label><input type="number" id="unitPrice_' + idx + '" min="0" step="0.01" placeholder="0.00" inputmode="decimal" oninput="calcAll()"/></div>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Value ₹ <span class="calc-badge">AUTO</span></label><input type="text" id="value_' + idx + '" readonly placeholder="0.00"/></div>';
+}
+
+function addProductRow() {
+  var existing = document.querySelectorAll('.prod-row').length;
+  if (existing >= 3) { showToast('Maximum 3 products per order', '#C62828'); return; }
+  var idx = NEXT_PROD_IDX++;
+  var container = document.createElement('div');
+  container.className = 'prod-row';
+  container.setAttribute('data-idx', String(idx));
+  container.style.cssText = 'border-top:1.5px dashed #DDEAF5;margin-top:12px;padding-top:12px;';
+  container.innerHTML = buildProdRowHTML(idx, true);
+  document.getElementById('productRows').appendChild(container);
+  var labels = document.querySelectorAll('.prod-row-num');
+  labels.forEach(function(l, i) { l.textContent = 'Product ' + (i + 1) + (i === 0 ? ' *' : ''); });
+  if (existing + 1 >= 3) { var btn = document.getElementById('addProdBtn'); if (btn) btn.style.display = 'none'; }
+}
+
+function removeProductRow(idx) {
+  var row = document.querySelector('.prod-row[data-idx="' + idx + '"]');
+  if (row) row.parentNode.removeChild(row);
+  var btn = document.getElementById('addProdBtn');
+  if (btn) btn.style.display = '';
+  var labels = document.querySelectorAll('.prod-row-num');
+  labels.forEach(function(l, i) { l.textContent = 'Product ' + (i + 1) + (i === 0 ? ' *' : ''); });
+  calcAll();
+}
+
+// ================================================================
+//  SUBMIT ENTRY (quotation or order)
+// ================================================================
+function submitEntry(asType) {
   var custName   = gv('custName').trim();
   var custAddr   = gv('custAddr').trim();
   var sameAddrCb = document.getElementById('sameAddr');
   var deliveryAddr = (sameAddrCb && sameAddrCb.checked) ? custAddr : gv('deliveryAddr').trim();
   var custGst    = gv('custGst').trim().toUpperCase();
   var custPhone  = gv('custPhone').trim();
-  var productId  = gv('product');
-  var accessories= gv('accessories').trim();
-  var qty        = parseFloat(gv('qty'))       || 0;
-  var unitPrice  = parseFloat(gv('unitPrice')) || 0;
-  var cgstPct    = parseFloat(gv('cgstPct'))   || 0;
-  var sgstPct    = parseFloat(gv('sgstPct'))   || 0;
-  var igstPct    = parseFloat(gv('igstPct'))   || 0;
+  var items      = collectFormItems();
+  var cgstPct    = parseFloat(gv('cgstPct')) || 0;
+  var sgstPct    = parseFloat(gv('sgstPct')) || 0;
+  var igstPct    = parseFloat(gv('igstPct')) || 0;
   var payTermsSel= gv('payTerms');
   var customTerms= gv('customTerms').trim();
   var payTerms   = payTermsSel === '__custom__' ? customTerms : payTermsSel;
   var instructions = gv('instructions').trim();
 
-  // Validation
   var errs = [];
   if (!custName)  errs.push('Customer Name');
   if (!custAddr)  errs.push('Billing Address');
   if (!deliveryAddr) errs.push('Delivery Address');
   if (!custPhone || !/^\d{10}$/.test(custPhone)) errs.push('Contact Number (10 digits)');
-  if (!productId) errs.push('Product');
-  if (qty <= 0)   errs.push('Quantity (must be > 0)');
-  if (unitPrice <= 0) errs.push('Unit Price (must be > 0)');
+  if (!items.length) errs.push('Select at least one product');
+  items.forEach(function(item, i) {
+    var lbl = items.length > 1 ? ' (product ' + (i+1) + ')' : '';
+    if (item.qty <= 0) errs.push('Qty' + lbl + ' must be > 0');
+    if (item.unitPrice <= 0) errs.push('Unit Price' + lbl + ' must be > 0');
+  });
   if (!payTerms)  errs.push('Payment Terms');
   if (payTermsSel === '__custom__' && !customTerms) errs.push('Custom payment terms text');
-  // GST number is optional — no format validation enforced
 
   if (errs.length) {
-    showToast('Please fix:\n' + errs.slice(0, 4).join('\n') + (errs.length > 4 ? '\n…and more' : ''), '#C62828');
+    showToast('Please fix:\n' + errs.slice(0,4).join('\n') + (errs.length > 4 ? '\n…and more' : ''), '#C62828');
     return;
   }
 
-  var value   = qty * unitPrice;
-  var cgstAmt = value * cgstPct / 100;
-  var sgstAmt = value * sgstPct / 100;
-  var igstAmt = value * igstPct / 100;
-  var total   = value + cgstAmt + sgstAmt + igstAmt;
-  var now     = Date.now();
+  var subtotal = items.reduce(function(s, item) { return s + item.value; }, 0);
+  var cgstAmt  = subtotal * cgstPct / 100;
+  var sgstAmt  = subtotal * sgstPct / 100;
+  var igstAmt  = subtotal * igstPct / 100;
+  var total    = subtotal + cgstAmt + sgstAmt + igstAmt;
+  var now      = Date.now();
+  var d        = new Date(now);
+  var dateKey  = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
 
-  // Sequential order number: get+increment per-day counter from Firebase
-  var d = new Date(now);
-  var dateKey = d.getFullYear()
-    + String(d.getMonth() + 1).padStart(2,'0')
-    + String(d.getDate()).padStart(2,'0');
-
-  setBtnState('submitBtn', true, EDITING_ORDER_ID ? 'Saving…' : 'Submitting…');
+  var btnId = asType === 'quotation' ? 'quotBtn' : 'submitBtn';
+  var busyLabel = EDITING_ORDER_ID ? 'Saving…' : asType === 'quotation' ? 'Saving…' : CONVERTING_FROM_QUOT_ID ? 'Converting…' : 'Submitting…';
+  setBtnState(btnId, true, busyLabel);
 
   if (EDITING_ORDER_ID) {
-    // Edit mode — no new order number needed
-    _doSaveOrder(null, now, value, cgstAmt, sgstAmt, igstAmt, total,
-      custName, custAddr, deliveryAddr, custGst, custPhone,
-      productId, accessories, qty, unitPrice,
-      cgstPct, sgstPct, igstPct, payTerms, instructions);
+    _doSave(asType, null, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
+      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions);
     return;
   }
 
-  DB.ref('emco_config/counter/' + dateKey).transaction(function(cur) {
+  var counterPath = asType === 'quotation' ? 'emco_config/counterQ/' + dateKey : 'emco_config/counter/' + dateKey;
+  var prefix      = asType === 'quotation' ? 'EMCQ-' : 'EMCO-';
+
+  DB.ref(counterPath).transaction(function(cur) {
     return (cur || 0) + 1;
   }, function(err, committed, snap) {
     if (err || !committed) {
-      setBtnState('submitBtn', false, '✅  Submit Order');
-      showToast('Could not generate order number, please retry', '#C62828');
+      setBtnState(btnId, false, asType === 'quotation' ? 'Save Quotation' : CONVERTING_FROM_QUOT_ID ? 'Convert to Order' : 'Place Order');
+      showToast('Could not generate number, please retry', '#C62828');
       return;
     }
-    _doSaveOrder(
-      'EMCO-' + dateKey + '-' + String(snap.val()).padStart(3, '0'),
-      now, value, cgstAmt, sgstAmt, igstAmt, total,
-      custName, custAddr, deliveryAddr, custGst, custPhone,
-      productId, accessories, qty, unitPrice,
-      cgstPct, sgstPct, igstPct, payTerms, instructions);
+    var num = prefix + dateKey + '-' + String(snap.val()).padStart(3,'0');
+    _doSave(asType, num, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
+      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions);
   });
 }
 
-function _doSaveOrder(orderNo, now, value, cgstAmt, sgstAmt, igstAmt, total,
-    custName, custAddr, deliveryAddr, custGst, custPhone,
-    productId, accessories, qty, unitPrice,
-    cgstPct, sgstPct, igstPct, payTerms, instructions) {
+function submitQuotation() { submitEntry('quotation'); }
+function submitOrder()     { submitEntry('order'); }
 
-  var orderData = {
+function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
+    custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions) {
+
+  var convFrom  = CONVERTING_FROM_QUOT_ID;
+  var btnId     = asType === 'quotation' ? 'quotBtn' : 'submitBtn';
+  var doneLabel = EDITING_ORDER_ID ? 'Update Order'
+    : asType === 'quotation' ? 'Save Quotation'
+    : convFrom ? 'Convert to Order' : 'Place Order';
+
+  var data = {
     orderNo:       orderNo || '',
     timestamp:     now,
     salesExecUid:  USER.uid,
     salesExecName: USER_NAME,
+    type:          asType,
     status:        'pending',
-    customer: {
-      name: custName, address: custAddr, deliveryAddr: deliveryAddr, gst: custGst, contact: custPhone
-    },
-    order: {
-      productId:    productId,
-      productName:  PRODUCTS[productId] || productId,
-      accessories:  accessories,
-      qty:          qty,
-      unitPrice:    unitPrice,
-      value:        value
-    },
-    tax: {
-      cgstPct: cgstPct, cgstAmt: cgstAmt,
-      sgstPct: sgstPct, sgstAmt: sgstAmt,
-      igstPct: igstPct, igstAmt: igstAmt
-    },
+    customer: { name: custName, address: custAddr, deliveryAddr: deliveryAddr, gst: custGst, contact: custPhone },
+    items:         items,
+    tax: { cgstPct: cgstPct, cgstAmt: cgstAmt, sgstPct: sgstPct, sgstAmt: sgstAmt, igstPct: igstPct, igstAmt: igstAmt },
     totalValue:    total,
     paymentTerms:  payTerms,
     instructions:  instructions
   };
 
   if (EDITING_ORDER_ID) {
-    var updateData = {
-      customer:     orderData.customer,
-      order:        orderData.order,
-      tax:          orderData.tax,
-      totalValue:   orderData.totalValue,
-      paymentTerms: orderData.paymentTerms,
-      instructions: orderData.instructions
+    var upd = {
+      customer: data.customer, items: data.items, tax: data.tax,
+      totalValue: data.totalValue, paymentTerms: data.paymentTerms, instructions: data.instructions
     };
-    DB.ref('emco_orders/' + EDITING_ORDER_ID).update(updateData, function(err) {
-      setBtnState('submitBtn', false, '✏️  Update Order');
+    DB.ref('emco_orders/' + EDITING_ORDER_ID).update(upd, function(err) {
+      setBtnState(btnId, false, doneLabel);
       if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
-      showToast('✅ Order updated!', '#00915C');
+      showToast('Order updated!', '#00915C');
       EDITING_ORDER_ID = null;
       MY_ORDERS = [];
       clearOrderForm();
@@ -680,19 +737,46 @@ function _doSaveOrder(orderNo, now, value, cgstAmt, sgstAmt, igstAmt, total,
       render();
     });
   } else {
-    DB.ref('emco_orders').push(orderData, function(err) {
-      setBtnState('submitBtn', false, '✅  Submit Order');
+    DB.ref('emco_orders').push(data, function(err) {
+      setBtnState(btnId, false, doneLabel);
       if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
-      showToast('✅ Order ' + orderNo + ' submitted!', '#00915C');
-      clearOrderForm();
+      if (asType === 'order') {
+        DB.ref('emco_notifications').push({
+          timestamp: Date.now(), type: 'new_order', orderNo: orderNo,
+          execName: USER_NAME, execUid: USER.uid, totalValue: total, read: false
+        });
+        if (convFrom) {
+          DB.ref('emco_orders/' + convFrom).update({status: 'order_received'});
+          CONVERTING_FROM_QUOT_ID = null;
+        }
+        showToast('Order ' + orderNo + ' placed!', '#00915C');
+        clearOrderForm();
+        TAB = 'myOrders';
+        render();
+      } else {
+        showToast(orderNo + ' saved!', '#005A8E');
+        clearOrderForm();
+        TAB = 'myQuotations';
+        render();
+      }
     });
   }
 }
-
 function clearOrderForm() {
-  ['custName','custAddr','deliveryAddr','custGst','custPhone','product','accessories',
-   'qty','unitPrice','value','cgstPct','cgstAmt','sgstPct','sgstAmt',
-   'igstPct','igstAmt','totalValue','payTerms','customTerms','instructions'
+  // Remove extra product rows (keep only row 0)
+  var extraRows = document.querySelectorAll('.prod-row:not([data-idx="0"])');
+  extraRows.forEach(function(r) { r.parentNode.removeChild(r); });
+  NEXT_PROD_IDX = 1;
+  var addBtn = document.getElementById('addProdBtn');
+  if (addBtn) addBtn.style.display = '';
+  // Clear row 0 fields
+  ['product_0','accessories_0','qty_0','unitPrice_0','value_0'].forEach(function(id) {
+    var e = document.getElementById(id); if (e) e.value = '';
+  });
+  // Clear other fields
+  ['custName','custAddr','deliveryAddr','custGst','custPhone',
+   'cgstPct','cgstAmt','sgstPct','sgstAmt','igstPct','igstAmt',
+   'totalValue','payTerms','customTerms','instructions'
   ].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
   var w = document.getElementById('customTermsWrap');
   if (w) w.style.display = 'none';
@@ -714,18 +798,17 @@ function editOrder(orderId) {
   if (!o) return;
 
   EDITING_ORDER_ID = orderId;
+  CONVERTING_FROM_QUOT_ID = null;
   document.getElementById('modalRoot').innerHTML = '';
   document.body.style.overflow = '';
   TAB = 'newOrder';
   render();
 
   setTimeout(function() {
-    var sv = function(id, val) { var e = document.getElementById(id); if (e) e.value = val; };
-
-    sv('custName',    o.customer.name    || '');
-    sv('custAddr',    o.customer.address || '');
-    sv('custGst',     o.customer.gst     || '');
-    sv('custPhone',   o.customer.contact || '');
+    sv('custName',  o.customer.name    || '');
+    sv('custAddr',  o.customer.address || '');
+    sv('custGst',   o.customer.gst     || '');
+    sv('custPhone', o.customer.contact || '');
 
     var sameAsBilling = !o.customer.deliveryAddr || o.customer.deliveryAddr === o.customer.address;
     var cb  = document.getElementById('sameAddr');
@@ -734,11 +817,25 @@ function editOrder(orderId) {
     if (daw) daw.style.display = sameAsBilling ? 'none' : 'block';
     if (!sameAsBilling) sv('deliveryAddr', o.customer.deliveryAddr || '');
 
-    var productSel = document.getElementById('product');
-    if (productSel) productSel.value = o.order.productId || '';
-    sv('accessories', o.order.accessories || '');
-    sv('qty',         String(o.order.qty       || ''));
-    sv('unitPrice',   String(o.order.unitPrice || ''));
+    var orderItems = getItems(o);
+    // Fill first row
+    if (orderItems[0]) {
+      var sel0 = document.getElementById('product_0');
+      if (sel0) sel0.value = orderItems[0].productId || '';
+      sv('accessories_0', orderItems[0].accessories || '');
+      sv('qty_0',         String(orderItems[0].qty       || ''));
+      sv('unitPrice_0',   String(orderItems[0].unitPrice || ''));
+    }
+    // Add extra rows for items 2 and 3
+    for (var i = 1; i < orderItems.length && i < 3; i++) {
+      addProductRow();
+      var addedIdx = NEXT_PROD_IDX - 1;
+      var selN = document.getElementById('product_' + addedIdx);
+      if (selN) selN.value = orderItems[i].productId || '';
+      sv('accessories_' + addedIdx, orderItems[i].accessories || '');
+      sv('qty_' + addedIdx,         String(orderItems[i].qty       || ''));
+      sv('unitPrice_' + addedIdx,   String(orderItems[i].unitPrice || ''));
+    }
 
     sv('cgstPct', String(o.tax.cgstPct || ''));
     sv('sgstPct', String(o.tax.sgstPct || ''));
@@ -757,7 +854,6 @@ function editOrder(orderId) {
       }
     }
     sv('instructions', o.instructions || '');
-
     calcAll();
     showToast('Editing ' + o.orderNo + ' — tap Update Order to save', '#005A8E');
   }, 80);
@@ -793,7 +889,7 @@ function loadMyOrders() {
       var orders = [];
       snap.forEach(function(c) {
         var o = c.val(); o.id = c.key;
-        if (o.salesExecUid === USER.uid) orders.push(o);
+        if (o.salesExecUid === USER.uid && o.type !== 'quotation') orders.push(o);
       });
       orders.sort(function(a, b) { return b.timestamp - a.timestamp; });
       MY_ORDERS = orders;
@@ -805,22 +901,235 @@ function loadMyOrders() {
 }
 
 // ================================================================
+//  MY QUOTATIONS
+// ================================================================
+function renderMyQuotations() {
+  setTimeout(loadMyQuotations, 0);
+  return '<div id="myQuotsList">'
+    + '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
+    + '<div class="empty-txt">Loading your quotations…</div></div>'
+    + '</div>';
+}
+
+function loadMyQuotations() {
+  var el = document.getElementById('myQuotsList');
+  if (!el) return;
+  DB.ref('emco_orders').once('value', function(snap) {
+    var quots = [];
+    snap.forEach(function(c) {
+      var o = c.val(); o.id = c.key;
+      if (o.salesExecUid === USER.uid && o.type === 'quotation') quots.push(o);
+    });
+    quots.sort(function(a, b) { return b.timestamp - a.timestamp; });
+    MY_QUOTATIONS = quots;
+    el.innerHTML = quots.length
+      ? quots.map(quotCardHTML).join('')
+      : '<div class="empty"><div class="empty-ico">📄</div>'
+        + '<div class="empty-txt">No quotations yet. Create your first quotation!</div></div>';
+  });
+}
+
+function quotCardHTML(o) {
+  var d = new Date(o.timestamp);
+  var dateStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+  var items = getItems(o);
+  var prodLine = items.length
+    ? esc((items[0].productName||'')) + (items.length > 1 ? ' +' + (items.length-1) + ' more' : ' × ' + items[0].qty)
+    : '';
+  var sBg  = o.status === 'order_received' ? '#D4EDDA' : o.status === 'order_lost' ? '#F8D7DA' : '#FFF3CD';
+  var sFg  = o.status === 'order_received' ? '#155724' : o.status === 'order_lost' ? '#721C24' : '#7A5100';
+  var sLbl = o.status === 'order_received' ? 'Order Received' : o.status === 'order_lost' ? 'Lost' : 'Pending';
+  return '<div class="order-card" onclick="showQuotDetail(\'' + esc(o.id) + '\')">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">'
+    + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
+    + '  <span style="background:' + sBg + ';color:' + sFg + ';font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;">' + sLbl + '</span>'
+    + '</div>'
+    + '<div class="order-meta" style="margin-top:5px;">' + esc(o.customer.name) + '</div>'
+    + '<div class="order-meta">' + prodLine + '</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">'
+    + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
+    + '  <span style="font-size:11px;color:#aaa;">' + dateStr + '</span>'
+    + '</div>'
+    + '</div>';
+}
+
+function showQuotDetail(quotId) {
+  var o = null;
+  for (var i = 0; i < MY_QUOTATIONS.length; i++) { if (MY_QUOTATIONS[i].id === quotId) { o = MY_QUOTATIONS[i]; break; } }
+  if (!o) return;
+
+  function row(lbl, val) {
+    if (!val && val !== 0) return '';
+    return '<div class="detail-row"><span class="d-lbl">' + lbl + '</span><span class="d-val">' + esc(String(val)) + '</span></div>';
+  }
+  function sect(lbl) { return '<div class="d-sect">' + lbl + '</div>'; }
+
+  var taxRows = '';
+  if (o.tax.cgstPct) taxRows += row('CGST ' + o.tax.cgstPct + '%', fmtCurr(o.tax.cgstAmt));
+  if (o.tax.sgstPct) taxRows += row('SGST ' + o.tax.sgstPct + '%', fmtCurr(o.tax.sgstAmt));
+  if (o.tax.igstPct) taxRows += row('IGST ' + o.tax.igstPct + '%', fmtCurr(o.tax.igstAmt));
+  if (!taxRows) taxRows = '<div class="detail-row"><span class="d-lbl">Tax</span><span class="d-val">NIL</span></div>';
+
+  var dateStr  = new Date(o.timestamp).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
+  var sBg      = o.status === 'order_received' ? '#D4EDDA' : o.status === 'order_lost' ? '#F8D7DA' : '#FFF3CD';
+  var sFg      = o.status === 'order_received' ? '#155724' : o.status === 'order_lost' ? '#721C24' : '#7A5100';
+  var sLbl     = o.status === 'order_received' ? 'Order Received' : o.status === 'order_lost' ? 'Order Lost' : 'Pending';
+  var sCls     = o.status === 'order_received' ? 's-approved' : o.status === 'order_lost' ? 's-cancelled' : 's-pending';
+
+  var its = getItems(o);
+  var itemsHTML = its.map(function(item, i) {
+    return (its.length > 1 ? '<div class="d-sect" style="font-size:10px;padding:8px 0 3px;color:#3A6A8A;">ITEM ' + (i+1) + '</div>' : '')
+      + row('Product',    item.productName)
+      + (item.accessories ? row('Accessories', item.accessories) : '')
+      + row('Qty × Price', item.qty + ' × ' + fmtCurr(item.unitPrice))
+      + row('Value',      fmtCurr(item.value));
+  }).join('');
+
+  var statusBtns = o.status === 'pending'
+    ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+        + '<button class="btn btn-sm" style="background:#F8D7DA;color:#721C24;border:1.5px solid #F5C6CB;" onclick="updateQuotStatus(\'' + quotId + '\',\'order_lost\')">Mark Lost</button>'
+        + '<button class="btn btn-sm" style="background:#D4EDDA;color:#155724;border:1.5px solid #C3E6CB;" onclick="updateQuotStatus(\'' + quotId + '\',\'order_received\')">Mark Received</button>'
+        + '</div>'
+    : '';
+
+  var convertBtn = o.status === 'order_received'
+    ? '<button class="btn btn-success btn-full" style="margin-bottom:8px;" onclick="startConversion(\'' + quotId + '\')">Convert to Order</button>'
+    : '';
+
+  var html = '<div class="modal-overlay" id="quotModal" onclick="closeModal(event)">'
+    + '<div class="modal-sheet" onclick="event.stopPropagation()">'
+    + '<div class="modal-handle"></div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+    + '  <div class="modal-title" style="margin:0;">' + esc(o.orderNo) + '</div>'
+    + '  <span class="status-badge ' + sCls + '">' + sLbl + '</span>'
+    + '</div>'
+    + sect('Customer')
+    + row('Name', o.customer.name)
+    + row('Billing Address', o.customer.address)
+    + (o.customer.deliveryAddr && o.customer.deliveryAddr !== o.customer.address ? row('Delivery Address', o.customer.deliveryAddr) : row('Delivery Address', 'Same as billing'))
+    + row('GST', o.customer.gst || 'N/A')
+    + row('Contact', o.customer.contact)
+    + sect('Quote Details')
+    + itemsHTML
+    + sect('Tax')
+    + taxRows
+    + '<div class="detail-row" style="margin-top:4px;">'
+    + '  <span class="d-lbl" style="color:#003D6B;font-size:14px;">Total Value</span>'
+    + '  <span class="d-val" style="font-size:18px;font-weight:900;color:#003D6B;">' + fmtCurr(o.totalValue) + '</span>'
+    + '</div>'
+    + sect('Terms')
+    + row('Payment Terms', o.paymentTerms)
+    + (o.instructions ? row('Instructions', o.instructions) : '')
+    + row('Date', dateStr)
+    + '<div style="margin-top:16px;">'
+    + statusBtns
+    + convertBtn
+    + '<button class="btn btn-print btn-full" onclick="printOrder(\'' + quotId + '\', false)" style="margin-bottom:8px;">Save as PDF</button>'
+    + '<button class="btn btn-ghost btn-full" onclick="closeModal()">Close</button>'
+    + '</div>'
+    + '</div></div>';
+
+  document.getElementById('modalRoot').innerHTML = html;
+  document.body.style.overflow = 'hidden';
+}
+
+function updateQuotStatus(quotId, newStatus) {
+  DB.ref('emco_orders/' + quotId + '/status').set(newStatus, function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    document.getElementById('modalRoot').innerHTML = '';
+    document.body.style.overflow = '';
+    var lbl = newStatus === 'order_received' ? 'Order Received' : 'Order Lost';
+    showToast('Marked as ' + lbl, '#005A8E');
+    loadMyQuotations();
+  });
+}
+
+function startConversion(quotId) {
+  var o = null;
+  for (var i = 0; i < MY_QUOTATIONS.length; i++) { if (MY_QUOTATIONS[i].id === quotId) { o = MY_QUOTATIONS[i]; break; } }
+  if (!o) return;
+
+  CONVERTING_FROM_QUOT_ID = quotId;
+  EDITING_ORDER_ID = null;
+  document.getElementById('modalRoot').innerHTML = '';
+  document.body.style.overflow = '';
+  TAB = 'newOrder';
+  render();
+
+  setTimeout(function() {
+    sv('custName',  o.customer.name    || '');
+    sv('custAddr',  o.customer.address || '');
+    sv('custGst',   o.customer.gst     || '');
+    sv('custPhone', o.customer.contact || '');
+
+    var sameAsBilling = !o.customer.deliveryAddr || o.customer.deliveryAddr === o.customer.address;
+    var cb  = document.getElementById('sameAddr');
+    var daw = document.getElementById('deliveryAddrWrap');
+    if (cb)  cb.checked = sameAsBilling;
+    if (daw) daw.style.display = sameAsBilling ? 'none' : 'block';
+    if (!sameAsBilling) sv('deliveryAddr', o.customer.deliveryAddr || '');
+
+    var quotItems = getItems(o);
+    if (quotItems[0]) {
+      var sel0 = document.getElementById('product_0');
+      if (sel0) sel0.value = quotItems[0].productId || '';
+      sv('accessories_0', quotItems[0].accessories || '');
+      sv('qty_0',         String(quotItems[0].qty       || ''));
+      sv('unitPrice_0',   String(quotItems[0].unitPrice || ''));
+    }
+    for (var i = 1; i < quotItems.length && i < 3; i++) {
+      addProductRow();
+      var addedIdx = NEXT_PROD_IDX - 1;
+      var selN = document.getElementById('product_' + addedIdx);
+      if (selN) selN.value = quotItems[i].productId || '';
+      sv('accessories_' + addedIdx, quotItems[i].accessories || '');
+      sv('qty_' + addedIdx,         String(quotItems[i].qty       || ''));
+      sv('unitPrice_' + addedIdx,   String(quotItems[i].unitPrice || ''));
+    }
+
+    sv('cgstPct', String(o.tax.cgstPct || ''));
+    sv('sgstPct', String(o.tax.sgstPct || ''));
+    sv('igstPct', String(o.tax.igstPct || ''));
+
+    var stdTerms = ['Advance','Within one week','Within 15 days','30 days'];
+    var payTermsSel = document.getElementById('payTerms');
+    if (payTermsSel) {
+      if (stdTerms.indexOf(o.paymentTerms) !== -1) {
+        payTermsSel.value = o.paymentTerms;
+      } else {
+        payTermsSel.value = '__custom__';
+        sv('customTerms', o.paymentTerms || '');
+        var cw = document.getElementById('customTermsWrap');
+        if (cw) cw.style.display = 'block';
+      }
+    }
+    sv('instructions', o.instructions || '');
+    calcAll();
+    showToast('Converting ' + o.orderNo + ' — update values & tap Convert to Order', '#005A8E');
+  }, 80);
+}
+
+
+// ================================================================
 //  ADMIN
 // ================================================================
 function renderAdmin() {
+  var nb = NOTIF_UNREAD > 0
+    ? ' <span style="background:#C62828;color:#fff;border-radius:99px;font-size:9px;padding:1px 5px;font-weight:900;vertical-align:middle;margin-left:2px;">' + NOTIF_UNREAD + '</span>'
+    : '';
   return '<div id="adminSection">'
     + '<div class="tab-bar" style="margin:0 0 13px;flex-wrap:wrap;">'
-    + '  <button class="tab-btn active" id="aBtnProd"   onclick="showAdminTab(\'products\')">🏥 Products</button>'
-    + '  <button class="tab-btn"        id="aBtnOrders" onclick="showAdminTab(\'orders\')">📋 Orders</button>'
-    + '  <button class="tab-btn"        id="aBtnUsers"  onclick="showAdminTab(\'users\')">👥 Users</button>'
-    + '  <button class="tab-btn"        id="aBtnSets"   onclick="showAdminTab(\'settings\')">⚙️ Settings</button>'
+    + '  <button class="tab-btn active" id="aBtnProd"   onclick="showAdminTab(\'products\')">Products</button>'
+    + '  <button class="tab-btn"        id="aBtnQuots"  onclick="showAdminTab(\'quotations\')">Quotes</button>'
+    + '  <button class="tab-btn"        id="aBtnOrders" onclick="showAdminTab(\'orders\')">Orders' + nb + '</button>'
+    + '  <button class="tab-btn"        id="aBtnUsers"  onclick="showAdminTab(\'users\')">Users</button>'
+    + '  <button class="tab-btn"        id="aBtnSets"   onclick="showAdminTab(\'settings\')">Settings</button>'
     + '</div>'
     + '<div id="adminContent">' + renderAdminProducts() + '</div>'
     + '</div>';
 }
-
 function showAdminTab(t) {
-  var map = {products:'aBtnProd', orders:'aBtnOrders', users:'aBtnUsers', settings:'aBtnSets'};
+  var map = {products:'aBtnProd', quotations:'aBtnQuots', orders:'aBtnOrders', users:'aBtnUsers', settings:'aBtnSets'};
   Object.keys(map).forEach(function(k) {
     var el = document.getElementById(map[k]);
     if (el) el.className = 'tab-btn' + (k === t ? ' active' : '');
@@ -829,9 +1138,15 @@ function showAdminTab(t) {
   if (!c) return;
   if (t === 'products') {
     c.innerHTML = renderAdminProducts();
-  } else if (t === 'orders') {
+  } else if (t === 'quotations') {
     c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
-      + '<div class="empty-txt">Loading orders…</div></div>';
+      + '<div class="empty-txt">Loading quotations...</div></div>';
+    setTimeout(loadAdminQuotations, 0);
+  } else if (t === 'orders') {
+    NOTIF_UNREAD = 0; markNotificationsRead();
+    var nb2 = document.getElementById('aBtnOrders'); if (nb2) nb2.innerHTML = 'Orders';
+    c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
+      + '<div class="empty-txt">Loading orders...</div></div>';
     setTimeout(loadAllOrders, 0);
   } else if (t === 'users') {
     c.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
@@ -873,7 +1188,7 @@ function loadAllOrders() {
   if (!c) return;
   DB.ref('emco_orders').once('value', function(snap) {
     var orders = [];
-    snap.forEach(function(ch) { var o = ch.val(); o.id = ch.key; orders.push(o); });
+    snap.forEach(function(ch) { var o = ch.val(); o.id = ch.key; if (o.type !== 'quotation') orders.push(o); });
     orders.sort(function(a, b) { return b.timestamp - a.timestamp; });
     ALL_ORDERS = orders;
     if (!orders.length) {
@@ -930,7 +1245,7 @@ function loadAllOrders() {
               + '    <span style="font-size:11px;color:#aaa;">' + d + '</span>'
               + '  </div>'
               + '  <div class="order-meta" style="margin-top:4px;">Customer: ' + esc(o.customer.name) + '</div>'
-              + '  <div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
+              + '  <div class="order-meta">' + esc((getItems(o)[0]||{}).productName||'') + (getItems(o).length > 1 ? ' +' + (getItems(o).length-1) + ' more' : (' × ' + (getItems(o)[0]||{}).qty)) + '</div>'
               + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">'
               + '    <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
               + '    <div style="display:flex;gap:6px;">'
@@ -946,6 +1261,79 @@ function loadAllOrders() {
     c.innerHTML = html;
   });
 }
+
+function loadAdminQuotations() {
+  var c = document.getElementById('adminContent');
+  if (!c) return;
+  DB.ref('emco_orders').once('value', function(snap) {
+    var quots = [];
+    snap.forEach(function(ch) {
+      var o = ch.val(); o.id = ch.key;
+      if (o.type === 'quotation') quots.push(o);
+    });
+    quots.sort(function(a, b) { return b.timestamp - a.timestamp; });
+    ALL_QUOTATIONS = quots;
+    if (!quots.length) {
+      c.innerHTML = '<div class="empty"><div class="empty-ico">📄</div><div class="empty-txt">No quotations yet</div></div>';
+      return;
+    }
+    var counts = {
+      pending:  quots.filter(function(o){return o.status==='pending';}).length,
+      received: quots.filter(function(o){return o.status==='order_received';}).length,
+      lost:     quots.filter(function(o){return o.status==='order_lost';}).length
+    };
+    var totalVal = quots.reduce(function(s,o){return s+(o.totalValue||0);},0);
+    var html = '<div style="background:#E6F0FA;border-radius:10px;padding:12px 14px;margin-bottom:12px;">'
+      + '<div style="font-size:12px;font-weight:800;color:#003D6B;">📊 Summary</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">'
+      + '<div style="background:#FFF3CD;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:18px;font-weight:900;color:#7A5100;">' + counts.pending + '</div><div style="font-size:9px;color:#7A5100;font-weight:700;">PENDING</div></div>'
+      + '<div style="background:#D4EDDA;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:18px;font-weight:900;color:#155724;">' + counts.received + '</div><div style="font-size:9px;color:#155724;font-weight:700;">RECEIVED</div></div>'
+      + '<div style="background:#F8D7DA;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:18px;font-weight:900;color:#721C24;">' + counts.lost + '</div><div style="font-size:9px;color:#721C24;font-weight:700;">LOST</div></div>'
+      + '</div><div style="margin-top:8px;font-size:11px;color:#005A8E;font-weight:700;">Total quoted: ' + fmtCurr(totalVal) + '</div>'
+      + '</div>';
+    var execMap = {};
+    quots.forEach(function(o) {
+      var uid = o.salesExecUid || 'unknown';
+      if (!execMap[uid]) execMap[uid] = {name: o.salesExecName||'Unknown', quots:[], total:0};
+      execMap[uid].quots.push(o);
+      execMap[uid].total += (o.totalValue||0);
+    });
+    Object.keys(execMap).forEach(function(uid) {
+      var exec = execMap[uid];
+      var sid  = 'equot_' + uid.replace(/[^a-z0-9]/gi,'_');
+      html += '<div class="sec" style="margin-bottom:13px;">'
+        + '<div class="sec-head" style="background:#EEF2FF;cursor:pointer;" onclick="toggleExec(\'' + sid + '\')">'
+        + '  <div class="sec-ico" style="background:#C5CAF5;">👤</div>'
+        + '  <div style="flex:1;min-width:0;"><div class="sec-title" style="color:#1A1A7A;">' + esc(exec.name) + '</div>'
+        + '  <div style="font-size:11px;color:#5A5A9A;margin-top:2px;font-weight:600;">' + exec.quots.length + ' quote' + (exec.quots.length>1?'s':'') + ' &nbsp;·&nbsp; ' + fmtCurr(exec.total) + '</div></div>'
+        + '  <span id="' + sid + '_arrow" style="color:#5A5A9A;font-size:18px;flex-shrink:0;">▼</span>'
+        + '</div>'
+        + '<div id="' + sid + '" style="display:none;">'
+        + exec.quots.map(function(o) {
+            var d    = new Date(o.timestamp).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+            var sBg  = o.status==='order_received'?'#D4EDDA':o.status==='order_lost'?'#F8D7DA':'#FFF3CD';
+            var sFg  = o.status==='order_received'?'#155724':o.status==='order_lost'?'#721C24':'#7A5100';
+            var sLbl = o.status==='order_received'?'Received':o.status==='order_lost'?'Lost':'Pending';
+            var its  = getItems(o);
+            var pl   = its.length ? esc((its[0].productName||''))+(its.length>1?' +'+(its.length-1)+' more':' × '+its[0].qty) : '';
+            return '<div style="padding:12px 14px;border-top:1px solid #F0F4F8;">'
+              + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
+              + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
+              + '  <span style="background:'+sBg+';color:'+sFg+';font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;">' + sLbl + '</span>'
+              + '</div>'
+              + '<div class="order-meta" style="margin-top:4px;">' + esc(o.customer.name) + '</div>'
+              + '<div class="order-meta">' + pl + '</div>'
+              + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">'
+              + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
+              + '  <span style="font-size:11px;color:#aaa;">' + d + '</span>'
+              + '</div></div>';
+          }).join('')
+        + '</div></div>';
+    });
+    c.innerHTML = html;
+  });
+}
+
 
 function toggleExec(sectionId) {
   var el = document.getElementById(sectionId);
@@ -1109,6 +1497,34 @@ function saveAdminCode() {
   });
 }
 
+// ================================================================
+//  ADMIN NOTIFICATIONS
+// ================================================================
+function listenAdminNotifications() {
+  DB.ref('emco_notifications').orderByChild('read').equalTo(false)
+    .on('value', function(snap) {
+      var count = 0;
+      snap.forEach(function() { count++; });
+      NOTIF_UNREAD = count;
+      var btn = document.getElementById('aBtnOrders');
+      if (btn) {
+        btn.innerHTML = count > 0
+          ? 'Orders <span style="background:#C62828;color:#fff;border-radius:99px;font-size:9px;padding:1px 5px;font-weight:900;vertical-align:middle;">' + count + '</span>'
+          : 'Orders';
+      }
+    });
+}
+
+function markNotificationsRead() {
+  DB.ref('emco_notifications').orderByChild('read').equalTo(false)
+    .once('value', function(snap) {
+      var upd = {};
+      snap.forEach(function(ch) { upd[ch.key + '/read'] = true; });
+      if (Object.keys(upd).length) DB.ref('emco_notifications').update(upd);
+    });
+}
+
+
 function loadProducts(cb) {
   DB.ref('emco_products').once('value', function(snap) {
     PRODUCTS = {};
@@ -1138,14 +1554,18 @@ function seedDefaultProducts(cb) {
 // ================================================================
 function orderCardHTML(o) {
   var d = new Date(o.timestamp);
-  var dateStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+  var dateStr  = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+  var items    = getItems(o);
+  var prodLine = items.length
+    ? esc((items[0].productName||'')) + (items.length > 1 ? ' +' + (items.length-1) + ' more' : ' × ' + items[0].qty)
+    : '';
   return '<div class="order-card" onclick="showOrderDetail(\'' + esc(o.id) + '\',false)">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">'
     + '  <span class="order-no">' + esc(o.orderNo) + '</span>'
     + '  <span style="font-size:11px;color:#888;">' + esc(dateStr) + '</span>'
     + '</div>'
     + '<div class="order-meta" style="margin-top:5px;">' + esc(o.customer.name) + '</div>'
-    + '<div class="order-meta">' + esc(o.order.productName) + ' × ' + o.order.qty + '</div>'
+    + '<div class="order-meta">' + prodLine + '</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">'
     + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
     + '  <span style="font-size:11px;color:#aaa;">' + dateStr + '</span>'
@@ -1154,7 +1574,7 @@ function orderCardHTML(o) {
 }
 
 function showOrderDetail(orderId, fromAdmin) {
-  var pool = fromAdmin ? ALL_ORDERS : MY_ORDERS.concat(ALL_ORDERS);
+  var pool = fromAdmin ? ALL_ORDERS.concat(ALL_QUOTATIONS) : MY_ORDERS.concat(ALL_ORDERS).concat(MY_QUOTATIONS).concat(ALL_QUOTATIONS);
   var o = null;
   for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
   if (!o) return;
@@ -1192,12 +1612,17 @@ function showOrderDetail(orderId, fromAdmin) {
     + row('GST',              o.customer.gst || 'N/A')
     + row('Contact',          o.customer.contact)
 
-    + sect('Order')
-    + row('Product',     o.order.productName)
-    + (o.order.accessories ? row('Accessories', o.order.accessories) : '')
-    + row('Quantity',    o.order.qty)
-    + row('Unit Price',  fmtCurr(o.order.unitPrice))
-    + row('Value',       fmtCurr(o.order.value))
+    + sect('Order Details')
+    + (function(){
+        var its = getItems(o);
+        return its.map(function(item, i) {
+          return (its.length > 1 ? '<div class="d-sect" style="font-size:10px;padding:8px 0 3px;border-bottom:1px solid #EBF2FA;color:#3A6A8A;">ITEM ' + (i+1) + '</div>' : '')
+            + row('Product',    item.productName)
+            + (item.accessories ? row('Accessories', item.accessories) : '')
+            + row('Qty × Price', item.qty + ' × ' + fmtCurr(item.unitPrice))
+            + row('Value',      fmtCurr(item.value));
+        }).join('');
+      })()
 
     + sect('Tax')
     + taxRows
@@ -1276,7 +1701,7 @@ function saveProfile() {
 //  PRINT ORDER — single page PDF layout
 // ================================================================
 function printOrder(orderId, fromAdmin) {
-  var pool = fromAdmin ? ALL_ORDERS : MY_ORDERS.concat(ALL_ORDERS);
+  var pool = fromAdmin ? ALL_ORDERS.concat(ALL_QUOTATIONS) : MY_ORDERS.concat(ALL_ORDERS).concat(MY_QUOTATIONS).concat(ALL_QUOTATIONS);
   var o = null;
   for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
   if (!o) return;
@@ -1346,7 +1771,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">Sales Order Confirmation &nbsp;·&nbsp; Ver 1.4</div>'
+    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.5</div>'
     + '  </div>'
     + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
@@ -1366,13 +1791,18 @@ function printOrder(orderId, fromAdmin) {
     + (o.customer.contact ? '<div class="r"><span class="rl">Contact</span><span class="rv">'      + esc(o.customer.contact) + '</span></div>' : '')
     + '</div>'
 
-    // Order Details (full width)
+    // Order Details (full width, multi-product)
     + '<div class="box"><div class="box-title">Order Details</div>'
-    + (o.order.productName ? '<div class="r"><span class="rl">Product</span><span class="rv">'      + esc(o.order.productName) + '</span></div>' : '')
-    + (o.order.accessories ? '<div class="r"><span class="rl">Accessories</span><span class="rv">' + esc(o.order.accessories) + '</span></div>' : '')
-    + '<div class="r"><span class="rl">Quantity</span><span class="rv">'   + esc(String(o.order.qty))   + '</span></div>'
-    + '<div class="r"><span class="rl">Unit Price</span><span class="rv">' + fmtCurr(o.order.unitPrice) + '</span></div>'
-    + '<div class="r"><span class="rl">Value</span><span class="rv">'      + fmtCurr(o.order.value)     + '</span></div>'
+    + (function(){
+        var its = getItems(o);
+        return its.map(function(item, i) {
+          return (its.length > 1 ? '<div style="font-size:9px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.06em;' + (i > 0 ? 'margin-top:7px;padding-top:6px;border-top:1px dashed #DDE;' : '') + '">Item ' + (i+1) + '</div>' : '')
+            + (item.productName  ? '<div class="r"><span class="rl">Product</span><span class="rv">'     + esc(item.productName)    + '</span></div>' : '')
+            + (item.accessories  ? '<div class="r"><span class="rl">Accessories</span><span class="rv">'+ esc(item.accessories)    + '</span></div>' : '')
+            + '<div class="r"><span class="rl">Qty × Price</span><span class="rv">' + esc(String(item.qty)) + ' × ' + fmtCurr(item.unitPrice) + '</span></div>'
+            + '<div class="r"><span class="rl">Value</span><span class="rv">'          + fmtCurr(item.value) + '</span></div>';
+        }).join('');
+      })()
     + '</div>'
 
     // Tax
@@ -1472,10 +1902,15 @@ function buildShareText(o) {
     '*Contact:* ' + o.customer.contact,
     '',
     '*── ORDER ──*',
-    '*Product:* ' + o.order.productName,
-    (o.order.accessories ? '*Accessories:* ' + o.order.accessories : ''),
-    '*Qty:* ' + o.order.qty + '  |  *Unit Price:* ' + fmtCurr(o.order.unitPrice),
-    '*Value:* ' + fmtCurr(o.order.value),
+    (function(){
+      var its = getItems(o);
+      return its.map(function(item, i) {
+        return (its.length > 1 ? '*Item ' + (i+1) + ':* ' + (item.productName||'') : '*Product:* ' + (item.productName||''))
+          + (item.accessories ? '\n*Accessories:* ' + item.accessories : '')
+          + '\n*Qty:* ' + item.qty + '  |  *Unit Price:* ' + fmtCurr(item.unitPrice)
+          + '\n*Value:* ' + fmtCurr(item.value);
+      }).join('\n');
+    })(),
     '',
     '*── TAX ──*'
   ];
