@@ -1839,7 +1839,7 @@ function printOrder(orderId, fromAdmin) {
     // Screen-only buttons
     + '<div class="no-print" style="text-align:center;padding:16px;">'
     + '  <div style="display:flex;justify-content:center;gap:12px;margin-bottom:8px;">'
-    + '    <button onclick="savePDF()" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ ' + (fromAdmin ? 'Print' : 'Save as PDF') + '</button>'
+    + '    <button onclick="savePDF(\'' + esc(o.orderNo) + '\')" style="padding:12px 28px;background:#005A8E;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">🖨️ ' + (fromAdmin ? 'Print' : 'Save as PDF') + '</button>'
     + '    <button onclick="var p=document.getElementById(\'printArea\');p.innerHTML=\'\';p.style.cssText=\'\';" style="padding:12px 22px;background:#eee;color:#333;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Close</button>'
     + '  </div>'
     + '  <div style="font-size:11px;color:#888;">In print dialog — select <b>A4</b> paper &amp; set margins to <b>None</b></div>'
@@ -1853,18 +1853,21 @@ function printOrder(orderId, fromAdmin) {
 //  the order content so there is zero interference from the main
 //  page's body{min-height:100vh} or any other app CSS.
 // ================================================================
-function savePDF() {
+function savePDF(orderNo) {
   var pa       = document.getElementById('printArea');
   var styleEl  = pa.querySelector('style');
   var pageDiv  = pa.querySelector('.page');
   if (!styleEl || !pageDiv) return;
+
+  var prefix    = (orderNo && orderNo.indexOf('EMCQ') === 0) ? 'Quote ' : 'Order ';
+  var fileTitle = orderNo ? (prefix + orderNo) : 'Emco Meditek — Order';
 
   // Build a complete self-contained HTML document.
   // @page in a fresh window's <head> is the only reliable way to set
   // paper size; body has no min-height so no blank pages are added.
   var printDoc = '<!DOCTYPE html><html><head>'
     + '<meta charset="UTF-8">'
-    + '<title>Emco Meditek — Order</title>'
+    + '<title>' + fileTitle + '</title>'
     + '<style>'
     + '@page{size:A4 portrait;margin:10mm;}'
     + styleEl.textContent
