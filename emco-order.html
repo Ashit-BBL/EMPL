@@ -322,7 +322,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.6</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.61</div>'
     + '</div>';
 }
 
@@ -362,7 +362,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.6</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.61</div>'
     + '</div>';
 }
 
@@ -408,7 +408,7 @@ function renderNewOrder() {
     + '          style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"/>'
     + '      </div>'
     + '      <div class="field"><label class="fl">Contact Number *</label>'
-    + '        <input type="tel" id="custPhone" placeholder="10-digit mobile" maxlength="10" inputmode="numeric"/>'
+    + '        <input type="text" id="custPhone" placeholder="+91-9XXXXXX or 09XXXXXX" inputmode="tel"/>'
     + '      </div>'
     + '    </div>'
     + '  </div>'
@@ -652,7 +652,7 @@ function submitEntry(asType) {
   if (!custName)  errs.push('Customer Name');
   if (!custAddr)  errs.push('Billing Address');
   if (!deliveryAddr) errs.push('Delivery Address');
-  if (!custPhone || !/^\d{10}$/.test(custPhone)) errs.push('Contact Number (10 digits)');
+  if (!custPhone) errs.push('Contact Number');
   if (!items.length) errs.push('Select at least one product');
   items.forEach(function(item, i) {
     var lbl = items.length > 1 ? ' (product ' + (i+1) + ')' : '';
@@ -1936,7 +1936,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.6</div>'
+    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.61</div>'
     + '  </div>'
     + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
