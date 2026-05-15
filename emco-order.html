@@ -136,6 +136,7 @@ textarea{resize:vertical;min-height:80px;}
   .page-body{padding:14px 14px 90px;}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 <div id="toast"></div>
@@ -212,6 +213,7 @@ var NEXT_PROD_IDX          = 1;
 var DB        = null;
 var AUTH_FB   = null;
 var CONFIG_OK = false;
+var EMAILJS_CONFIG = null; // {serviceId, templateId, publicKey, adminEmail}
 
 // ================================================================
 //  INIT
@@ -239,9 +241,16 @@ window.onload = function() {
           // Fetch admin code now that we're authenticated
           DB.ref('emco_config/adminCode').once('value', function(cs) {
             if (cs && cs.val()) ADMIN_CODE = cs.val();
-            SCR = 'dashboard';
-            TAB = 'newOrder';
-            loadProducts(function(){if(USER_ROLE==='admin')listenAdminNotifications();render();});
+            DB.ref('emco_config/emailjs').once('value', function(es) {
+              if (es && es.val()) EMAILJS_CONFIG = es.val();
+              SCR = 'dashboard';
+              TAB = 'newOrder';
+              loadProducts(function(){if(USER_ROLE==='admin')listenAdminNotifications();render();});
+            }, function() {
+              SCR = 'dashboard';
+              TAB = 'newOrder';
+              loadProducts(function(){if(USER_ROLE==='admin')listenAdminNotifications();render();});
+            });
           }, function() {
             // Permission error fallback — use default code
             SCR = 'dashboard';
@@ -313,7 +322,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.5</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.6</div>'
     + '</div>';
 }
 
@@ -353,7 +362,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.5</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.6</div>'
     + '</div>';
 }
 
@@ -745,6 +754,7 @@ function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt
           timestamp: Date.now(), type: 'new_order', orderNo: orderNo,
           execName: USER_NAME, execUid: USER.uid, totalValue: total, read: false
         });
+        sendEmailNotification('order', orderNo, USER_NAME, custName, items, total);
         if (convFrom) {
           DB.ref('emco_orders/' + convFrom).update({status: 'order_received'});
           CONVERTING_FROM_QUOT_ID = null;
@@ -754,6 +764,7 @@ function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt
         TAB = 'myOrders';
         render();
       } else {
+        sendEmailNotification('quotation', orderNo, USER_NAME, custName, items, total);
         showToast(orderNo + ' saved!', '#005A8E');
         clearOrderForm();
         TAB = 'myQuotations';
@@ -1325,7 +1336,10 @@ function loadAdminQuotations() {
               + '<div class="order-meta">' + pl + '</div>'
               + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">'
               + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
-              + '  <span style="font-size:11px;color:#aaa;">' + d + '</span>'
+              + '  <div style="display:flex;gap:6px;align-items:center;">'
+              + '    <span style="font-size:11px;color:#aaa;">' + d + '</span>'
+              + '    <button class="btn btn-danger btn-sm" onclick="deleteQuotation(\'' + esc(o.id) + '\',\'' + esc(o.orderNo) + '\')">Delete</button>'
+              + '  </div>'
               + '</div></div>';
           }).join('')
         + '</div></div>';
@@ -1351,6 +1365,16 @@ function deleteOrder(orderId, orderNo) {
     if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
     showToast('Order ' + orderNo + ' deleted', '#005A8E');
     loadAllOrders();
+  });
+}
+
+function deleteQuotation(quotId, quotNo) {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  if (!confirm('Delete quotation ' + quotNo + '?\nThis cannot be undone.')) return;
+  DB.ref('emco_orders/' + quotId).remove(function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    showToast('Quotation ' + quotNo + ' deleted', '#005A8E');
+    loadAdminQuotations();
   });
 }
 
@@ -1474,6 +1498,45 @@ function renderAdminSettings() {
     + '  <input type="text" id="confirmCode" placeholder="Re-enter new code"/>'
     + '</div>'
     + '<button id="saveCodeBtn" class="btn btn-primary btn-full" onclick="saveAdminCode()">💾 Save New Code</button>'
+    + '</div></div>'
+
+    // ── EmailJS Email Notifications ──
+    + '<div class="sec" style="margin-top:16px;">'
+    + '<div class="sec-head" style="background:#F0FFF4;">'
+    + '  <div class="sec-ico" style="background:#B2DFDB;">📧</div>'
+    + '  <span class="sec-title" style="color:#00401A;">Email Notifications</span>'
+    + '</div>'
+    + '<div class="sec-body">'
+    + '<p style="font-size:12px;color:#444;margin-bottom:10px;">Admin receives an email whenever a quotation or order is placed. Uses <strong>EmailJS</strong> (free, no backend). Setup at <strong>emailjs.com</strong>.</p>'
+    + '<p style="font-size:11px;color:#666;background:#F0F6FF;padding:8px 10px;border-radius:6px;margin-bottom:12px;">Template must use variables: <code>order_type</code>, <code>order_no</code>, <code>exec_name</code>, <code>customer_name</code>, <code>items_list</code>, <code>total_value</code>, <code>to_email</code></p>'
+    + '<div class="field"><label class="fl">EmailJS Public Key</label>'
+    + '  <input type="text" id="ej_publicKey" placeholder="e.g. aBcDeFgHiJkLm" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.publicKey ? esc(EMAILJS_CONFIG.publicKey) : '') + '"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Service ID</label>'
+    + '  <input type="text" id="ej_serviceId" placeholder="e.g. service_xxxxxx" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.serviceId ? esc(EMAILJS_CONFIG.serviceId) : '') + '"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Template ID</label>'
+    + '  <input type="text" id="ej_templateId" placeholder="e.g. template_xxxxxx" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.templateId ? esc(EMAILJS_CONFIG.templateId) : '') + '"/>'
+    + '</div>'
+    + '<div class="field"><label class="fl">Admin Email (receive notifications)</label>'
+    + '  <input type="email" id="ej_adminEmail" placeholder="admin@emcormeditek.com" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.adminEmail ? esc(EMAILJS_CONFIG.adminEmail) : '') + '"/>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:4px;">'
+    + '  <button id="saveEmailBtn" class="btn btn-primary" style="flex:1;" onclick="saveEmailConfig()">💾 Save Email Settings</button>'
+    + '  <button id="testEmailBtn" class="btn btn-ghost" style="flex:0 0 auto;" onclick="testEmailConfig()">Test</button>'
+    + '</div>'
+    + '</div></div>'
+
+    // ── Reset App Data ──
+    + '<div class="sec" style="margin-top:16px;">'
+    + '<div class="sec-head" style="background:#FFF0F0;">'
+    + '  <div class="sec-ico" style="background:#FFCDD2;">🗑️</div>'
+    + '  <span class="sec-title" style="color:#7A0000;">Reset App Data</span>'
+    + '</div>'
+    + '<div class="sec-body">'
+    + '<p style="font-size:12px;color:#555;margin-bottom:12px;">Permanently deletes <strong>all orders, quotations, notifications, and counters</strong>. Products and user accounts are kept. Use this to clear test data before going live.</p>'
+    + '<p style="font-size:11px;color:#C62828;font-weight:700;margin-bottom:14px;">⚠️ This action cannot be undone.</p>'
+    + '<button class="btn btn-danger btn-full" onclick="resetAppData()">🗑️ Reset All Orders &amp; Quotations</button>'
     + '</div></div>';
 }
 
@@ -1494,6 +1557,99 @@ function saveAdminCode() {
     ['currentCode','newCode','confirmCode'].forEach(function(id) {
       var e = document.getElementById(id); if (e) e.value = '';
     });
+  });
+}
+
+function saveEmailConfig() {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  var cfg = {
+    publicKey:  (gv('ej_publicKey')  || '').trim(),
+    serviceId:  (gv('ej_serviceId')  || '').trim(),
+    templateId: (gv('ej_templateId') || '').trim(),
+    adminEmail: (gv('ej_adminEmail') || '').trim()
+  };
+  if (!cfg.publicKey || !cfg.serviceId || !cfg.templateId || !cfg.adminEmail) {
+    showToast('All four email fields are required', '#C62828'); return;
+  }
+  setBtnState('saveEmailBtn', true, 'Saving…');
+  DB.ref('emco_config/emailjs').set(cfg, function(err) {
+    setBtnState('saveEmailBtn', false, '💾 Save Email Settings');
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    EMAILJS_CONFIG = cfg;
+    showToast('Email settings saved!', '#00915C');
+  });
+}
+
+function testEmailConfig() {
+  if (!EMAILJS_CONFIG || !EMAILJS_CONFIG.publicKey) {
+    showToast('Save email settings first', '#C62828'); return;
+  }
+  if (typeof emailjs === 'undefined') {
+    showToast('EmailJS library not loaded', '#C62828'); return;
+  }
+  setBtnState('testEmailBtn', true, '…');
+  emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
+  emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+    order_type:    'TEST',
+    order_no:      'TEST-001',
+    exec_name:     USER_NAME,
+    customer_name: 'Test Customer',
+    items_list:    'Test Product x 1',
+    total_value:   '₹ 1,000.00',
+    to_email:      EMAILJS_CONFIG.adminEmail
+  }).then(function() {
+    setBtnState('testEmailBtn', false, 'Test');
+    showToast('Test email sent! Check your inbox.', '#00915C');
+  }, function(err) {
+    setBtnState('testEmailBtn', false, 'Test');
+    showToast('Email failed: ' + (err.text || JSON.stringify(err)), '#C62828');
+  });
+}
+
+function sendEmailNotification(type, orderNo, execName, custName, items, total) {
+  if (!EMAILJS_CONFIG || !EMAILJS_CONFIG.publicKey || typeof emailjs === 'undefined') return;
+  var itemsList = items.map(function(it) {
+    return (it.productName || '') + (it.accessories ? ' [' + it.accessories + ']' : '') + ' x ' + it.qty + ' @ Rs ' + it.unitPrice;
+  }).join('; ');
+  try {
+    emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
+    emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+      order_type:    type === 'quotation' ? 'Quotation' : 'Order',
+      order_no:      orderNo || '',
+      exec_name:     execName || '',
+      customer_name: custName || '',
+      items_list:    itemsList,
+      total_value:   '₹ ' + Number(total).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}),
+      to_email:      EMAILJS_CONFIG.adminEmail
+    }).then(null, function(err) {
+      console.warn('Email notification failed:', err);
+    });
+  } catch(e) {
+    console.warn('EmailJS error:', e);
+  }
+}
+
+function resetAppData() {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  if (!confirm('RESET ALL DATA?\n\nThis will permanently delete ALL orders, quotations, notifications, and order counters.\n\nProducts and user accounts will be kept.\n\nType YES in the next dialog to confirm.')) return;
+  var confirmText = prompt('Type YES to confirm the reset:');
+  if (confirmText !== 'YES') { showToast('Reset cancelled', '#005A8E'); return; }
+  var updates = {
+    'emco_orders':          null,
+    'emco_notifications':   null,
+    'emco_config/counter':  null,
+    'emco_config/counterQ': null
+  };
+  DB.ref('/').update(updates, function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    MY_ORDERS     = [];
+    ALL_ORDERS    = [];
+    MY_QUOTATIONS = [];
+    ALL_QUOTATIONS= [];
+    NOTIF_UNREAD  = 0;
+    showToast('All data reset. App is ready to go live!', '#00915C');
+    TAB = 'newOrder';
+    render();
   });
 }
 
@@ -1771,7 +1927,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.5</div>'
+    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.6</div>'
     + '  </div>'
     + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
