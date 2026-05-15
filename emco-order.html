@@ -213,7 +213,7 @@ var NEXT_PROD_IDX          = 1;
 var DB        = null;
 var AUTH_FB   = null;
 var CONFIG_OK = false;
-var EMAILJS_CONFIG = null; // {serviceId, templateId, publicKey, adminEmail}
+var EMAILJS_CONFIG = null; // {serviceId, templateId, publicKey, adminEmails}
 
 // ================================================================
 //  INIT
@@ -1518,8 +1518,8 @@ function renderAdminSettings() {
     + '<div class="field"><label class="fl">Template ID</label>'
     + '  <input type="text" id="ej_templateId" placeholder="e.g. template_xxxxxx" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.templateId ? esc(EMAILJS_CONFIG.templateId) : '') + '"/>'
     + '</div>'
-    + '<div class="field"><label class="fl">Admin Email (receive notifications)</label>'
-    + '  <input type="email" id="ej_adminEmail" placeholder="admin@emcormeditek.com" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.adminEmail ? esc(EMAILJS_CONFIG.adminEmail) : '') + '"/>'
+    + '<div class="field"><label class="fl">Admin Emails (comma-separated)</label>'
+    + '  <input type="text" id="ej_adminEmail" placeholder="admin1@emco.com, admin2@emco.com" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.adminEmails ? esc(EMAILJS_CONFIG.adminEmails) : '') + '"/>'
     + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:4px;">'
     + '  <button id="saveEmailBtn" class="btn btn-primary" style="flex:1;" onclick="saveEmailConfig()">💾 Save Email Settings</button>'
@@ -1566,9 +1566,9 @@ function saveEmailConfig() {
     publicKey:  (gv('ej_publicKey')  || '').trim(),
     serviceId:  (gv('ej_serviceId')  || '').trim(),
     templateId: (gv('ej_templateId') || '').trim(),
-    adminEmail: (gv('ej_adminEmail') || '').trim()
+    adminEmails: (gv('ej_adminEmail') || '').trim()
   };
-  if (!cfg.publicKey || !cfg.serviceId || !cfg.templateId || !cfg.adminEmail) {
+  if (!cfg.publicKey || !cfg.serviceId || !cfg.templateId || !cfg.adminEmails) {
     showToast('All four email fields are required', '#C62828'); return;
   }
   setBtnState('saveEmailBtn', true, 'Saving…');
@@ -1587,19 +1587,24 @@ function testEmailConfig() {
   if (typeof emailjs === 'undefined') {
     showToast('EmailJS library not loaded', '#C62828'); return;
   }
+  var emails = EMAILJS_CONFIG.adminEmails.split(',').map(function(e){return e.trim();}).filter(Boolean);
+  if (!emails.length) { showToast('No admin emails configured', '#C62828'); return; }
   setBtnState('testEmailBtn', true, '…');
   emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
-  emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
-    order_type:    'TEST',
-    order_no:      'TEST-001',
-    exec_name:     USER_NAME,
-    customer_name: 'Test Customer',
-    items_list:    'Test Product x 1',
-    total_value:   '₹ 1,000.00',
-    to_email:      EMAILJS_CONFIG.adminEmail
-  }).then(function() {
+  var sends = emails.map(function(email) {
+    return emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+      order_type:    'TEST',
+      order_no:      'TEST-001',
+      exec_name:     USER_NAME,
+      customer_name: 'Test Customer',
+      items_list:    'Test Product x 1',
+      total_value:   '₹ 1,000.00',
+      to_email:      email
+    });
+  });
+  Promise.all(sends).then(function() {
     setBtnState('testEmailBtn', false, 'Test');
-    showToast('Test email sent! Check your inbox.', '#00915C');
+    showToast('Test email sent to ' + emails.length + ' admin(s)!', '#00915C');
   }, function(err) {
     setBtnState('testEmailBtn', false, 'Test');
     showToast('Email failed: ' + (err.text || JSON.stringify(err)), '#C62828');
@@ -1611,18 +1616,22 @@ function sendEmailNotification(type, orderNo, execName, custName, items, total) 
   var itemsList = items.map(function(it) {
     return (it.productName || '') + (it.accessories ? ' [' + it.accessories + ']' : '') + ' x ' + it.qty + ' @ Rs ' + it.unitPrice;
   }).join('; ');
+  var emails = EMAILJS_CONFIG.adminEmails.split(',').map(function(e){return e.trim();}).filter(Boolean);
+  if (!emails.length) return;
   try {
     emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
-    emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+    var params = {
       order_type:    type === 'quotation' ? 'Quotation' : 'Order',
       order_no:      orderNo || '',
       exec_name:     execName || '',
       customer_name: custName || '',
       items_list:    itemsList,
-      total_value:   '₹ ' + Number(total).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}),
-      to_email:      EMAILJS_CONFIG.adminEmail
-    }).then(null, function(err) {
-      console.warn('Email notification failed:', err);
+      total_value:   '₹ ' + Number(total).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})
+    };
+    emails.forEach(function(email) {
+      emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId,
+        Object.assign({}, params, { to_email: email })
+      ).then(null, function(err) { console.warn('Email notification failed:', err); });
     });
   } catch(e) {
     console.warn('EmailJS error:', e);
