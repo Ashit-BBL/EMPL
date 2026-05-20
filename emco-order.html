@@ -491,7 +491,10 @@ function renderNewOrder() {
     + '      <input type="text" id="customTerms" placeholder="e.g. 50% advance, balance on delivery"/>'
     + '    </div>'
     + '    <div class="field"><label class="fl">Special Instructions</label>'
-    + '      <textarea id="instructions" placeholder="Delivery date requirements, installation notes, warranty expectations…" rows="4"></textarea>'
+    + '      <textarea id="instructions" placeholder="Delivery date requirements, installation notes…" rows="4"></textarea>'
+    + '    </div>'
+    + '    <div class="field"><label class="fl">Warranty</label>'
+    + '      <input type="text" id="warranty" value="2 Years" placeholder="e.g. 2 Years, 1 Year AMC"/>'
     + '    </div>'
     + '  </div>'
     + '</div>'
@@ -660,6 +663,7 @@ function submitEntry(asType) {
   var customTerms= gv('customTerms').trim();
   var payTerms   = payTermsSel === '__custom__' ? customTerms : payTermsSel;
   var instructions = gv('instructions').trim();
+  var warranty    = gv('warranty').trim() || '2 Years';
 
   var errs = [];
   if (!custName)  errs.push('Customer Name');
@@ -695,7 +699,7 @@ function submitEntry(asType) {
 
   if (EDITING_ORDER_ID) {
     _doSave(asType, null, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
-      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions);
+      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions, warranty);
     return;
   }
 
@@ -712,7 +716,7 @@ function submitEntry(asType) {
     }
     var num = prefix + dateKey + '-' + String(snap.val()).padStart(3,'0');
     _doSave(asType, num, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
-      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions);
+      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions, warranty);
   });
 }
 
@@ -720,7 +724,7 @@ function submitQuotation() { submitEntry('quotation'); }
 function submitOrder()     { submitEntry('order'); }
 
 function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
-    custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions) {
+    custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions, warranty) {
 
   var convFrom  = CONVERTING_FROM_QUOT_ID;
   var btnId     = asType === 'quotation' ? 'quotBtn' : 'submitBtn';
@@ -740,13 +744,14 @@ function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt
     tax: { cgstPct: cgstPct, cgstAmt: cgstAmt, sgstPct: sgstPct, sgstAmt: sgstAmt, igstPct: igstPct, igstAmt: igstAmt },
     totalValue:    total,
     paymentTerms:  payTerms,
-    instructions:  instructions
+    instructions:  instructions,
+    warranty:      warranty || '2 Years'
   };
 
   if (EDITING_ORDER_ID) {
     var upd = {
       customer: data.customer, items: data.items, tax: data.tax,
-      totalValue: data.totalValue, paymentTerms: data.paymentTerms, instructions: data.instructions
+      totalValue: data.totalValue, paymentTerms: data.paymentTerms, instructions: data.instructions, warranty: data.warranty
     };
     DB.ref('emco_orders/' + EDITING_ORDER_ID).update(upd, function(err) {
       setBtnState(btnId, false, doneLabel);
@@ -802,6 +807,7 @@ function clearOrderForm() {
    'cgstPct','cgstAmt','sgstPct','sgstAmt','igstPct','igstAmt',
    'totalValue','payTerms','customTerms','instructions'
   ].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
+  var wEl = document.getElementById('warranty'); if (wEl) wEl.value = '2 Years';
   var w = document.getElementById('customTermsWrap');
   if (w) w.style.display = 'none';
   var cb   = document.getElementById('sameAddr');
@@ -878,6 +884,7 @@ function editOrder(orderId) {
       }
     }
     sv('instructions', o.instructions || '');
+    sv('warranty', o.warranty || '2 Years');
     calcAll();
     showToast('Editing ' + o.orderNo + ' — tap Update Order to save', '#005A8E');
   }, 80);
@@ -1043,6 +1050,7 @@ function showQuotDetail(quotId) {
     + '</div>'
     + sect('Terms')
     + row('Payment Terms', o.paymentTerms)
+    + row('Warranty', o.warranty || '2 Years')
     + (o.instructions ? row('Instructions', o.instructions) : '')
     + row('Date', dateStr)
     + '<div style="margin-top:16px;">'
@@ -1853,6 +1861,7 @@ function showOrderDetail(orderId, fromAdmin) {
 
     + sect('Terms')
     + row('Payment Terms',  o.paymentTerms)
+    + row('Warranty',       o.warranty || '2 Years')
     + (o.instructions ? row('Instructions', o.instructions) : '')
     + row('Sales Executive', o.salesExecName)
     + row('Date',            dateStr)
