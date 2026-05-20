@@ -202,6 +202,7 @@ var USER_ROLE = 'exec';   // 'exec' | 'admin'
 var SCR       = 'login';
 var TAB       = 'newOrder';
 var PRODUCTS  = {};       // { firebaseKey: productName }
+var PRODUCT_STD_ACCESSORIES = {}; // { firebaseKey: [accessory strings] }
 var MY_ORDERS = [];
 var ALL_ORDERS= [];
 var EDITING_ORDER_ID      = null;
@@ -322,7 +323,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.61</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.7</div>'
     + '</div>';
 }
 
@@ -362,7 +363,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.61</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.7</div>'
     + '</div>';
 }
 
@@ -560,6 +561,17 @@ function syncDeliveryAddr() {
 // ================================================================
 //  COLLECT FORM ITEMS (multi-product support)
 // ================================================================
+function onProductChange(idx) {
+  var pid = gv('product_' + idx);
+  var ta  = document.getElementById('accessories_' + idx);
+  if (ta && pid && PRODUCT_STD_ACCESSORIES[pid] && PRODUCT_STD_ACCESSORIES[pid].length) {
+    ta.value = PRODUCT_STD_ACCESSORIES[pid].join('\n');
+  } else if (ta && !pid) {
+    ta.value = '';
+  }
+  calcAll();
+}
+
 function collectFormItems() {
   var items = [];
   document.querySelectorAll('.prod-row').forEach(function(row) {
@@ -595,8 +607,9 @@ function buildProdRowHTML(idx, showRemove) {
     + '<span class="fl prod-row-num" style="margin:0;">Product' + (showRemove ? '' : ' *') + '</span>'
     + (showRemove ? '<button type="button" class="btn btn-danger btn-sm" style="padding:4px 10px;min-height:26px;font-size:11px;" onclick="removeProductRow(' + idx + ')">Remove</button>' : '')
     + '</div>'
-    + '<select id="product_' + idx + '" onchange="calcAll()" style="margin-bottom:10px;">' + prodOpts + '</select>'
-    + '<input type="text" id="accessories_' + idx + '" placeholder="Accessories / Configuration (optional)" style="margin-bottom:10px;"/>'
+    + '<select id="product_' + idx + '" onchange="onProductChange(' + idx + ')" style="margin-bottom:10px;">' + prodOpts + '</select>'
+    + '<label class="fl" style="margin-bottom:5px;">Standard Accessories <span style="font-size:10px;color:#888;font-weight:normal;">(auto-filled on product select &middot; editable)</span></label>'
+    + '<textarea id="accessories_' + idx + '" rows="5" placeholder="Select a product above to auto-fill standard accessories..." style="margin-bottom:10px;font-size:13px;line-height:1.7;"></textarea>'
     + '<div class="g2">'
     + '<div class="field"><label class="fl">Qty *</label><input type="number" id="qty_' + idx + '" min="1" placeholder="0" inputmode="numeric" oninput="calcAll()"/></div>'
     + '<div class="field"><label class="fl">Unit Price ₹ *</label><input type="number" id="unitPrice_' + idx + '" min="0" step="0.01" placeholder="0.00" inputmode="decimal" oninput="calcAll()"/></div>'
@@ -1173,9 +1186,26 @@ function renderAdminProducts() {
     return PRODUCTS[a].localeCompare(PRODUCTS[b]);
   });
   var items = keys.map(function(id) {
-    return '<div class="prod-item">'
-      + '<span class="prod-name">' + esc(PRODUCTS[id]) + '</span>'
-      + '<button class="btn btn-danger btn-sm" onclick="deleteProduct(\'' + esc(id) + '\')">Delete</button>'
+    var accList    = (PRODUCT_STD_ACCESSORIES[id] || []);
+    var accPreview = accList.length
+      ? accList.slice(0,2).join(', ') + (accList.length > 2 ? ' +' + (accList.length-2) + ' more' : '')
+      : 'No accessories configured';
+    return '<div style="border-bottom:1px solid #F0F4F8;padding:10px 0;">'
+      + '<div class="prod-item" style="border:none;padding:0;margin:0;">'
+      + '  <div style="min-width:0;flex:1;">'
+      + '    <div class="prod-name">' + esc(PRODUCTS[id]) + '</div>'
+      + '    <div style="font-size:10px;color:#888;margin-top:2px;">' + esc(accPreview) + '</div>'
+      + '  </div>'
+      + '  <div style="display:flex;gap:6px;">'
+      + '    <button class="btn btn-ghost btn-sm" onclick="toggleProdAcc(\'' + id + '\')">Accessories</button>'
+      + '    <button class="btn btn-danger btn-sm" onclick="deleteProduct(\'' + esc(id) + '\')">Delete</button>'
+      + '  </div>'
+      + '</div>'
+      + '<div id="pacc_' + id + '" style="display:none;background:#F8FBFF;border-radius:8px;padding:12px;margin-top:8px;">'
+      + '  <div style="font-size:11px;color:#555;margin-bottom:8px;">One accessory per line &nbsp;·&nbsp; max 12 &nbsp;·&nbsp; auto-fills when exec selects this product in a quotation.</div>'
+      + '  <textarea id="paccta_' + id + '" rows="7" style="font-size:13px;line-height:1.7;">' + esc(accList.join('\n')) + '</textarea>'
+      + '  <button class="btn btn-success btn-sm" style="margin-top:8px;width:100%;" onclick="saveProductAccessories(\'' + id + '\')">Save Accessories</button>'
+      + '</div>'
       + '</div>';
   }).join('');
 
@@ -1375,6 +1405,29 @@ function deleteQuotation(quotId, quotNo) {
     if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
     showToast('Quotation ' + quotNo + ' deleted', '#005A8E');
     loadAdminQuotations();
+  });
+}
+
+function toggleProdAcc(id) {
+  var el = document.getElementById('pacc_' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveProductAccessories(id) {
+  if (USER_ROLE !== 'admin') { showToast('Admin access required', '#C62828'); return; }
+  var ta = document.getElementById('paccta_' + id);
+  if (!ta) return;
+  var lines = ta.value.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+  if (lines.length > 12) { showToast('Maximum 12 accessories allowed', '#C62828'); return; }
+  DB.ref('emco_products/' + id + '/stdAccessories').set(lines.length ? lines : null, function(err) {
+    if (err) { showToast('Error: ' + err.message, '#C62828'); return; }
+    if (lines.length) PRODUCT_STD_ACCESSORIES[id] = lines;
+    else delete PRODUCT_STD_ACCESSORIES[id];
+    showToast('Accessories saved for ' + (PRODUCTS[id] || id) + '!', '#00915C');
+    loadProducts(function() {
+      var el = document.getElementById('adminContent');
+      if (el) el.innerHTML = renderAdminProducts();
+    });
   });
 }
 
@@ -1693,9 +1746,11 @@ function markNotificationsRead() {
 function loadProducts(cb) {
   DB.ref('emco_products').once('value', function(snap) {
     PRODUCTS = {};
+    PRODUCT_STD_ACCESSORIES = {};
     snap.forEach(function(c) {
       var v = c.val();
       PRODUCTS[c.key] = (typeof v === 'string') ? v : (v.name || '');
+      if (v && Array.isArray(v.stdAccessories)) PRODUCT_STD_ACCESSORIES[c.key] = v.stdAccessories;
     });
     if (!Object.keys(PRODUCTS).length) seedDefaultProducts(cb);
     else if (cb) cb();
@@ -1936,7 +1991,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.61</div>'
+    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.7</div>'
     + '  </div>'
     + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
