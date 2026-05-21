@@ -1376,6 +1376,7 @@ function loadAdminQuotations() {
               + '  <span class="order-total">' + fmtCurr(o.totalValue) + '</span>'
               + '  <div style="display:flex;gap:6px;align-items:center;">'
               + '    <span style="font-size:11px;color:#aaa;">' + d + '</span>'
+              + '    <button class="btn btn-ghost btn-sm" onclick="showOrderDetail(\'' + esc(o.id) + '\',true)">Details</button>'
               + '    <button class="btn btn-danger btn-sm" onclick="deleteQuotation(\'' + esc(o.id) + '\',\'' + esc(o.orderNo) + '\')">Delete</button>'
               + '  </div>'
               + '</div></div>';
