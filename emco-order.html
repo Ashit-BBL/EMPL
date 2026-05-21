@@ -1935,7 +1935,8 @@ function printOrder(orderId, fromAdmin) {
   for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
   if (!o) return;
 
-  var dateStr = new Date(o.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'long', year:'numeric'});
+  var dateStr  = new Date(o.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'long', year:'numeric'});
+  var todayStr = new Date().toLocaleDateString('en-IN');
 
   var taxParts = [];
   if (o.tax.cgstPct) taxParts.push('CGST ' + o.tax.cgstPct + '%: ' + fmtCurr(o.tax.cgstAmt));
@@ -2012,7 +2013,7 @@ function printOrder(orderId, fromAdmin) {
     + '  </div>'
     + '  <div style="display:flex;justify-content:space-between;align-items:center;padding-top:5px;">'
     + '    <div style="font-size:12px;font-weight:900;color:#003D6B;text-transform:uppercase;letter-spacing:.05em;">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + '</div>'
-    + '    <div style="font-size:9px;color:#888;">Ver 1.8 &nbsp;|&nbsp; ' + new Date().toLocaleDateString(\'en-IN\') + '</div>'
+    + '    <div style="font-size:9px;color:#888;">Ver 1.8 &nbsp;|&nbsp; ' + todayStr + '</div>'
     + '  </div>'
     + '</div>'
 
