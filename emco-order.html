@@ -323,7 +323,7 @@ function renderLogin() {
     + '    <button class="btn btn-ghost btn-sm" style="margin-left:6px;" onclick="showRegModal()">Register</button>'
     + '  </div>'
     + '</div>'
-    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.7</div>'
+    + '<div style="text-align:center;margin-top:18px;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.8</div>'
     + '</div>';
 }
 
@@ -363,7 +363,7 @@ function renderDashboard() {
     + tabBar
     + '<div class="page-body">'
     + content
-    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.7</div>'
+    + '<div style="text-align:center;padding:18px 0 4px;font-size:11px;color:#bbb;font-weight:600;">Emco Meditek Pvt Ltd &nbsp;·&nbsp; Ver 1.8</div>'
     + '</div>';
 }
 
@@ -1569,7 +1569,7 @@ function renderAdminSettings() {
     + '</div>'
     + '<div class="sec-body">'
     + '<p style="font-size:12px;color:#444;margin-bottom:10px;">Admin receives an email whenever a quotation or order is placed. Uses <strong>EmailJS</strong> (free, no backend). Setup at <strong>emailjs.com</strong>.</p>'
-    + '<p style="font-size:11px;color:#666;background:#F0F6FF;padding:8px 10px;border-radius:6px;margin-bottom:12px;">Template must use variables: <code>order_type</code>, <code>order_no</code>, <code>exec_name</code>, <code>customer_name</code>, <code>items_list</code>, <code>total_value</code>, <code>to_email</code></p>'
+    + '<p style="font-size:11px;color:#666;background:#F0F6FF;padding:8px 10px;border-radius:6px;margin-bottom:12px;">Template must use variables: <code>subject</code>, <code>order_type</code>, <code>order_no</code>, <code>exec_name</code>, <code>customer_name</code>, <code>items_list</code>, <code>total_value</code>, <code>to_email</code>. Set the template Subject field to <code>{{subject}}</code>.</p>'
     + '<div class="field"><label class="fl">EmailJS Public Key</label>'
     + '  <input type="text" id="ej_publicKey" placeholder="e.g. aBcDeFgHiJkLm" value="' + (EMAILJS_CONFIG && EMAILJS_CONFIG.publicKey ? esc(EMAILJS_CONFIG.publicKey) : '') + '"/>'
     + '</div>'
@@ -1840,7 +1840,7 @@ function showOrderDetail(orderId, fromAdmin) {
     + row('GST',              o.customer.gst || 'N/A')
     + row('Contact',          o.customer.contact)
 
-    + sect('Order Details')
+    + sect(o.type === 'quotation' ? 'Quotation Details' : 'Order Details')
     + (function(){
         var its = getItems(o);
         return its.map(function(item, i) {
@@ -1869,7 +1869,7 @@ function showOrderDetail(orderId, fromAdmin) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px;">'
     + '  <button class="btn btn-success" onclick="whatsappOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">💬 WhatsApp</button>'
     + '  <button class="btn btn-primary" onclick="shareOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📤 Share</button>'
-    + (!fromAdmin ? '  <button class="btn" style="background:#E65100;color:#fff;" onclick="editOrder(\'' + esc(orderId) + '\')">✏️ Edit Order</button>' : '')
+    + (!fromAdmin ? '  <button class="btn" style="background:#E65100;color:#fff;" onclick="editOrder(\'' + esc(orderId) + '\')">✏️ ' + (o.type === 'quotation' ? 'Edit Quotation' : 'Edit Order') + '</button>' : '')
     + '  <button class="btn btn-print" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">' + (fromAdmin ? '🖨️ Print' : '🖨️ Save as PDF') + '</button>'
     + '  <button class="btn btn-ghost" onclick="closeModal()' + (fromAdmin ? '' : '') + '">' + (fromAdmin ? '✕ Close' : '✕ Close') + '</button>'
     + '</div>'
@@ -2000,7 +2000,7 @@ function printOrder(orderId, fromAdmin) {
     + '  <img class="co-logo" src="emco-logo.png" onerror="this.style.display=\'none\'">'
     + '  <div class="co-text">'
     + '    <div class="co-name-big">Emco Meditek Pvt Ltd</div>'
-    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.7</div>'
+    + '    <div class="co-sub">' + (o.type === 'quotation' ? 'Quotation' : 'Sales Order Confirmation') + ' &nbsp;·&nbsp; Ver 1.8</div>'
     + '  </div>'
     + '  <div class="co-right">Date:<br>' + new Date().toLocaleDateString('en-IN') + '</div>'
     + '</div>'
@@ -2021,7 +2021,7 @@ function printOrder(orderId, fromAdmin) {
     + '</div>'
 
     // Order Details (full width, multi-product)
-    + '<div class="box"><div class="box-title">Order Details</div>'
+    + '<div class="box"><div class="box-title">' + (o.type === 'quotation' ? 'Quotation Details' : 'Order Details') + '</div>'
     + (function(){
         var its = getItems(o);
         return its.map(function(item, i) {
@@ -2048,6 +2048,8 @@ function printOrder(orderId, fromAdmin) {
     // Terms
     + '<div class="terms-box"><div class="terms-label">Payment Terms</div>'
     + '<div style="font-size:12px;font-weight:700;margin-top:2px;">' + esc(o.paymentTerms || '—') + '</div>'
+    + '<div style="margin-top:6px;"><span style="font-size:9px;font-weight:900;color:#005A8E;text-transform:uppercase;letter-spacing:.06em;">Warranty</span>'
+    + '<div style="font-size:11px;font-weight:700;margin-top:2px;">' + esc(o.warranty || '2 Years') + '</div></div>'
     + (o.instructions ? '<div style="margin-top:6px;font-size:11px;color:#444;"><b>Instructions:</b> ' + esc(o.instructions) + '</div>' : '')
     + '</div>'
 
@@ -2118,7 +2120,7 @@ function savePDF(orderNo) {
 function buildShareText(o) {
   var lines = [
     '*EMCO MEDITEK PVT LTD*',
-    '_Sales Order Confirmation_',
+    o.type === 'quotation' ? '_Quotation_' : '_Sales Order Confirmation_',
     '',
     '*Order No:* ' + o.orderNo,
     '*Date:* ' + new Date(o.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'long', year:'numeric'}),
@@ -2133,7 +2135,7 @@ function buildShareText(o) {
     (o.customer.gst ? '*GST:* ' + o.customer.gst : ''),
     '*Contact:* ' + o.customer.contact,
     '',
-    '*── ORDER ──*',
+    o.type === 'quotation' ? '*── QUOTATION ──*' : '*── ORDER ──*',
     (function(){
       var its = getItems(o);
       return its.map(function(item, i) {
@@ -2154,6 +2156,7 @@ function buildShareText(o) {
   lines.push('*TOTAL VALUE: ' + fmtCurr(o.totalValue) + '*');
   lines.push('');
   lines.push('*Payment Terms:* ' + (o.paymentTerms || '—'));
+  lines.push('*Warranty:* ' + (o.warranty || '2 Years'));
   if (o.instructions) lines.push('*Instructions:* ' + o.instructions);
 
   return lines.filter(function(l) { return l !== undefined && l !== null; }).join('\n');
@@ -2167,13 +2170,13 @@ function whatsappOrder(o) {
 function shareOrder(o) {
   var text = buildShareText(o);
   if (navigator.share) {
-    navigator.share({ title: 'Order ' + o.orderNo + ' — Emco Meditek', text: text })
+    navigator.share({ title: (o.type === 'quotation' ? 'Quotation ' : 'Order ') + o.orderNo + ' — Emco Meditek', text: text })
       .catch(function() {
         window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
       });
   } else {
     navigator.clipboard.writeText(text).then(function() {
-      showToast('Order details copied to clipboard', '#005A8E');
+      showToast((o.type === 'quotation' ? 'Quotation' : 'Order') + ' details copied to clipboard', '#005A8E');
     }).catch(function() {
       showToast('Share not supported on this browser', '#C62828');
     });
