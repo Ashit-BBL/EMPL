@@ -940,7 +940,8 @@ function loadMyOrders() {
 // ================================================================
 function renderMyQuotations() {
   setTimeout(loadMyQuotations, 0);
-  return '<div id="myQuotsList">'
+  return '<button class="btn btn-full no-print" style="background:#005A8E;color:#fff;margin-bottom:10px;" onclick="setTab(\'newOrder\')">+ New Quotation</button>'
+    + '<div id="myQuotsList">'
     + '<div class="empty"><div class="spinner" style="margin:0 auto 10px;"></div>'
     + '<div class="empty-txt">Loading your quotations…</div></div>'
     + '</div>';
