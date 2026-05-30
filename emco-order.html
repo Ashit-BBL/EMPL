@@ -411,6 +411,9 @@ function renderNewOrder() {
     + '      <div class="field"><label class="fl">Contact Number *</label>'
     + '        <input type="text" id="custPhone" placeholder="+91-9XXXXXX or 09XXXXXX" inputmode="tel"/>'
     + '      </div>'
+    + '      <div class="field"><label class="fl">Customer Email <span style="font-size:10px;color:#888;font-weight:normal;">(for sending quotation)</span></label>'
+    + '        <input type="email" id="custEmail" placeholder="customer@example.com" inputmode="email"/>'
+    + '      </div>'
     + '    </div>'
     + '  </div>'
     + '</div>'
@@ -655,6 +658,7 @@ function submitEntry(asType) {
   var deliveryAddr = (sameAddrCb && sameAddrCb.checked) ? custAddr : gv('deliveryAddr').trim();
   var custGst    = gv('custGst').trim().toUpperCase();
   var custPhone  = gv('custPhone').trim();
+  var custEmail  = gv('custEmail').trim();
   var items      = collectFormItems();
   var cgstPct    = parseFloat(gv('cgstPct')) || 0;
   var sgstPct    = parseFloat(gv('sgstPct')) || 0;
@@ -699,7 +703,7 @@ function submitEntry(asType) {
 
   if (EDITING_ORDER_ID) {
     _doSave(asType, null, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
-      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions, warranty);
+      custName, custAddr, deliveryAddr, custGst, custPhone, custEmail, payTerms, instructions, warranty);
     return;
   }
 
@@ -716,7 +720,7 @@ function submitEntry(asType) {
     }
     var num = prefix + dateKey + '-' + String(snap.val()).padStart(3,'0');
     _doSave(asType, num, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
-      custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions, warranty);
+      custName, custAddr, deliveryAddr, custGst, custPhone, custEmail, payTerms, instructions, warranty);
   });
 }
 
@@ -724,7 +728,7 @@ function submitQuotation() { submitEntry('quotation'); }
 function submitOrder()     { submitEntry('order'); }
 
 function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt, igstPct, igstAmt, total,
-    custName, custAddr, deliveryAddr, custGst, custPhone, payTerms, instructions, warranty) {
+    custName, custAddr, deliveryAddr, custGst, custPhone, custEmail, payTerms, instructions, warranty) {
 
   var convFrom  = CONVERTING_FROM_QUOT_ID;
   var btnId     = asType === 'quotation' ? 'quotBtn' : 'submitBtn';
@@ -739,7 +743,7 @@ function _doSave(asType, orderNo, now, items, cgstPct, cgstAmt, sgstPct, sgstAmt
     salesExecName: USER_NAME,
     type:          asType,
     status:        'pending',
-    customer: { name: custName, address: custAddr, deliveryAddr: deliveryAddr, gst: custGst, contact: custPhone },
+    customer: { name: custName, address: custAddr, deliveryAddr: deliveryAddr, gst: custGst, contact: custPhone, email: custEmail },
     items:         items,
     tax: { cgstPct: cgstPct, cgstAmt: cgstAmt, sgstPct: sgstPct, sgstAmt: sgstAmt, igstPct: igstPct, igstAmt: igstAmt },
     totalValue:    total,
@@ -805,7 +809,7 @@ function clearOrderForm() {
   // Clear other fields
   ['custName','custAddr','deliveryAddr','custGst','custPhone',
    'cgstPct','cgstAmt','sgstPct','sgstAmt','igstPct','igstAmt',
-   'totalValue','payTerms','customTerms','instructions'
+   'totalValue','payTerms','customTerms','instructions','custEmail'
   ].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
   var wEl = document.getElementById('warranty'); if (wEl) wEl.value = '2 Years';
   var w = document.getElementById('customTermsWrap');
@@ -1040,6 +1044,7 @@ function showQuotDetail(quotId) {
     + (o.customer.deliveryAddr && o.customer.deliveryAddr !== o.customer.address ? row('Delivery Address', o.customer.deliveryAddr) : row('Delivery Address', 'Same as billing'))
     + row('GST', o.customer.gst || 'N/A')
     + row('Contact', o.customer.contact)
+    + (o.customer.email ? row('Email', o.customer.email) : '')
     + sect('Quote Details')
     + itemsHTML
     + sect('Tax')
@@ -1056,7 +1061,12 @@ function showQuotDetail(quotId) {
     + '<div style="margin-top:16px;">'
     + statusBtns
     + convertBtn
-    + '<button class="btn btn-print btn-full" onclick="printOrder(\'' + quotId + '\', false)" style="margin-bottom:8px;">Save as PDF</button>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+    + '  <button class="btn btn-success" onclick="whatsappOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">💬 WhatsApp</button>'
+    + '  <button class="btn btn-primary" onclick="shareOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📤 Share</button>'
+    + '  <button class="btn btn-print" onclick="printOrder(\'' + quotId + '\', false)">🖨️ Save as PDF</button>'
+    + (o.customer && o.customer.email ? '  <button class="btn" style="background:#6A1B9A;color:#fff;" onclick="emailToCustomer(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📧 Email Customer</button>' : '')
+    + '</div>'
     + '<button class="btn btn-ghost btn-full" onclick="closeModal()">Close</button>'
     + '</div>'
     + '</div></div>';
@@ -2161,6 +2171,40 @@ function buildShareText(o) {
   if (o.instructions) lines.push('*Instructions:* ' + o.instructions);
 
   return lines.filter(function(l) { return l !== undefined && l !== null; }).join('\n');
+}
+
+function emailToCustomer(o) {
+  var email = o.customer && o.customer.email;
+  if (!email) { showToast('No customer email saved for this quotation', '#C62828'); return; }
+  var its = getItems(o);
+  var itemLines = its.map(function(item, i) {
+    return (its.length > 1 ? 'Item ' + (i+1) + ': ' : '') + (item.productName||'')
+      + (item.accessories ? '\nAccessories: ' + item.accessories : '')
+      + '\nQty: ' + item.qty + '  |  Unit Price: ' + fmtCurr(item.unitPrice)
+      + '\nValue: ' + fmtCurr(item.value);
+  }).join('\n\n');
+  var body = 'Dear ' + (o.customer.name || 'Sir/Madam') + ','
+    + '\n\nPlease find below our quotation details:'
+    + '\n\nQuotation No: ' + o.orderNo
+    + '\nDate: ' + new Date(o.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'long', year:'numeric'})
+    + '\n\n--- PRODUCTS ---\n' + itemLines
+    + '\n\n--- TAX ---'
+    + (o.tax.cgstPct ? '\nCGST ' + o.tax.cgstPct + '%: ' + fmtCurr(o.tax.cgstAmt) : '')
+    + (o.tax.sgstPct ? '\nSGST ' + o.tax.sgstPct + '%: ' + fmtCurr(o.tax.sgstAmt) : '')
+    + (o.tax.igstPct ? '\nIGST ' + o.tax.igstPct + '%: ' + fmtCurr(o.tax.igstAmt) : '')
+    + '\n\nTOTAL VALUE: ' + fmtCurr(o.totalValue)
+    + '\n\nPayment Terms: ' + (o.paymentTerms || '—')
+    + '\nWarranty: ' + (o.warranty || '2 Years')
+    + (o.instructions ? '\nInstructions: ' + o.instructions : '')
+    + '\n\nThank you for your interest.'
+    + '\n\nWarm regards,'
+    + '\nEmco Meditek Pvt Ltd'
+    + '\nTel: +91-2662-223397, 223398'
+    + '\nemcomeditek@gmail.com | www.emcomeditek.com';
+  var subject = 'Quotation ' + o.orderNo + ' from Emco Meditek Pvt Ltd';
+  window.location.href = 'mailto:' + encodeURIComponent(email)
+    + '?subject=' + encodeURIComponent(subject)
+    + '&body=' + encodeURIComponent(body);
 }
 
 function whatsappOrder(o) {
