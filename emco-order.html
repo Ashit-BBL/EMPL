@@ -149,6 +149,9 @@ textarea{resize:vertical;min-height:80px;}
 </div>
 <div id="modalRoot"></div>
 
+<!-- PDF Generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -1068,6 +1071,7 @@ function showQuotDetail(quotId) {
     + '  <button class="btn btn-print" onclick="printOrder(\'' + quotId + '\', false)">🖨️ Save as PDF</button>'
     + (o.customer && o.customer.email ? '  <button class="btn" style="background:#6A1B9A;color:#fff;" onclick="emailToCustomer(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📧 Email Customer</button>' : '')
     + '</div>'
+    + '<button class="btn btn-full" style="background:#1565C0;color:#fff;margin-bottom:8px;" onclick="sharePDF(\'' + quotId + '\', false)">📎 Email / Share PDF</button>'
     + '<button class="btn btn-ghost btn-full" onclick="closeModal()">Close</button>'
     + '</div>'
     + '</div></div>';
@@ -1883,8 +1887,9 @@ function showOrderDetail(orderId, fromAdmin) {
     + '  <button class="btn btn-primary" onclick="shareOrder(' + JSON.stringify(o).replace(/"/g,'&quot;') + ')">📤 Share</button>'
     + (!fromAdmin ? '  <button class="btn" style="background:#E65100;color:#fff;" onclick="editOrder(\'' + esc(orderId) + '\')">✏️ ' + (o.type === 'quotation' ? 'Edit Quotation' : 'Edit Order') + '</button>' : '')
     + '  <button class="btn btn-print" onclick="printOrder(\'' + esc(orderId) + '\',' + fromAdmin + ')">' + (fromAdmin ? '🖨️ Print' : '🖨️ Save as PDF') + '</button>'
-    + '  <button class="btn btn-ghost" onclick="closeModal()' + (fromAdmin ? '' : '') + '">' + (fromAdmin ? '✕ Close' : '✕ Close') + '</button>'
     + '</div>'
+    + '<button class="btn btn-full" style="background:#1565C0;color:#fff;margin-top:8px;margin-bottom:6px;" onclick="sharePDF(\'' + esc(orderId) + '\',' + fromAdmin + ')">📎 Email / Share PDF</button>'
+    + '<button class="btn btn-ghost btn-full" onclick="closeModal()">✕ Close</button>'
     + '</div></div>';
 
   document.getElementById('modalRoot').innerHTML = html;
@@ -2127,6 +2132,96 @@ function savePDF(orderNo) {
   w.focus();
   // Small delay lets the new window finish rendering before print dialog opens
   setTimeout(function() { try { w.print(); } catch (e) {} }, 450);
+}
+
+// ================================================================
+//  SHARE PDF — renders quotation via html2canvas + jsPDF,
+//  then opens native share sheet (email/WhatsApp/Files etc.)
+//  Falls back to direct download if Web Share API unavailable.
+// ================================================================
+function sharePDF(orderId, fromAdmin) {
+  var pool = fromAdmin ? ALL_ORDERS.concat(ALL_QUOTATIONS) : MY_ORDERS.concat(ALL_ORDERS).concat(MY_QUOTATIONS).concat(ALL_QUOTATIONS);
+  var o = null;
+  for (var i = 0; i < pool.length; i++) { if (pool[i].id === orderId) { o = pool[i]; break; } }
+  if (!o) { showToast('Order not found', '#C62828'); return; }
+
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+    showToast('PDF library loading — please try again in a moment', '#E65100'); return;
+  }
+
+  // Close modal first, then render print layout
+  document.getElementById('modalRoot').innerHTML = '';
+  document.body.style.overflow = '';
+
+  printOrder(orderId, fromAdmin);
+
+  var pa = document.getElementById('printArea');
+  var pageDiv = pa && pa.querySelector('.page');
+  if (!pageDiv) {
+    if (pa) { pa.innerHTML = ''; pa.style.cssText = ''; }
+    showToast('Cannot generate PDF', '#C62828'); return;
+  }
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,58,91,.88);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = '<div style="color:#fff;text-align:center;">'
+    + '<div class="spinner" style="margin:0 auto 14px;border-top-color:#fff;"></div>'
+    + '<div style="font-size:15px;font-weight:700;">Generating PDF…</div>'
+    + '<div style="font-size:12px;margin-top:6px;color:rgba(255,255,255,.7);">This may take a few seconds</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+
+  setTimeout(function() {
+    html2canvas(pageDiv, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    }).then(function(canvas) {
+      pa.innerHTML = ''; pa.style.cssText = '';
+      document.body.removeChild(overlay);
+
+      var imgData = canvas.toDataURL('image/jpeg', 0.88);
+      var pdf     = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      var pageW   = pdf.internal.pageSize.getWidth();   // 210 mm
+      var pageH   = pdf.internal.pageSize.getHeight();  // 297 mm
+      var imgH    = (canvas.height * pageW) / canvas.width;
+
+      for (var yPos = 0; yPos < imgH; yPos += pageH) {
+        if (yPos > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -yPos, pageW, imgH);
+      }
+
+      var prefix   = o.type === 'quotation' ? 'Quotation_' : 'Order_';
+      var filename = prefix + (o.orderNo || 'Emco') + '.pdf';
+      var blob     = pdf.output('blob');
+
+      try {
+        var file = new File([blob], filename, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: filename })
+            .catch(function(err) { if (err.name !== 'AbortError') _downloadPDF(blob, filename); });
+          return;
+        }
+      } catch (e) {}
+      _downloadPDF(blob, filename);
+
+    }).catch(function() {
+      pa.innerHTML = ''; pa.style.cssText = '';
+      document.body.removeChild(overlay);
+      showToast('PDF generation failed — use Save as PDF instead', '#C62828');
+    });
+  }, 900);
+}
+
+function _downloadPDF(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a   = document.createElement('a');
+  a.href  = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+  showToast('PDF downloaded — attach it to your email', '#005A8E');
 }
 
 function buildShareText(o) {
