@@ -2,6 +2,13 @@
 
 ---
 
+## Ver 1.91
+- **Email / Share PDF — single page A4 with margins**: PDF now always outputs as one A4 page with 10mm margins on all sides; content scales down to fit if needed (no more awkward 2-page splits)
+- **Fixed PDF format on mobile**: printArea now renders at 794px (A4 width) off-screen before capture — previously used mobile screen width (~375px), causing stretched/oversized layout in generated PDF
+- Right-edge clipping of footer/content eliminated
+
+---
+
 ## Ver 1.9
 - **+ New Quotation** button at top of Quotations tab (no need to switch to New Order tab)
 - **📎 Email / Share PDF** button in all quotation and order detail modals
